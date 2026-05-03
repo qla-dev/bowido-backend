@@ -28,34 +28,34 @@ class InvoiceGenerationFeatureTest extends TestCase
             'is_active' => true,
         ]);
 
-        $stored = Status::query()->where('slug', 'stored')->firstOrFail();
-        $released = Status::query()->where('slug', 'released')->firstOrFail();
+        $atCustomer = Status::query()->where('slug', 'at_customer')->firstOrFail();
+        $pendingReturn = Status::query()->where('slug', 'pending_return')->firstOrFail();
 
         $pallet = Pallet::factory()->create([
             'user_id' => $customer->id,
-            'current_status_id' => $released->id,
+            'current_status_id' => $pendingReturn->id,
             'qr_code' => 'INV-PALLET-1',
             'last_status_changed_at' => Carbon::parse('2026-04-04 10:00:00'),
         ]);
 
-        $enteredStorage = AuditLog::query()->create([
+        $enteredCustomerBilling = AuditLog::query()->create([
             'pallet_id' => $pallet->id,
             'made_by_user_id' => $admin->id,
             'event_type' => 'created',
-            'new_status_id' => $stored->id,
+            'new_status_id' => $atCustomer->id,
             'new_client_id' => $customer->id,
             'new_qr_code' => $pallet->qr_code,
         ]);
-        $enteredStorage->forceFill(['created_at' => Carbon::parse('2026-04-01 08:00:00')])->saveQuietly();
+        $enteredCustomerBilling->forceFill(['created_at' => Carbon::parse('2026-04-01 08:00:00')])->saveQuietly();
 
-        $releasedLog = AuditLog::query()->create([
+        $pendingReturnLog = AuditLog::query()->create([
             'pallet_id' => $pallet->id,
             'made_by_user_id' => $admin->id,
             'event_type' => 'status_changed',
-            'old_status_id' => $stored->id,
-            'new_status_id' => $released->id,
+            'old_status_id' => $atCustomer->id,
+            'new_status_id' => $pendingReturn->id,
         ]);
-        $releasedLog->forceFill(['created_at' => Carbon::parse('2026-04-04 10:00:00')])->saveQuietly();
+        $pendingReturnLog->forceFill(['created_at' => Carbon::parse('2026-04-04 10:00:00')])->saveQuietly();
 
         $response = $this->actingAs($admin, 'api')->postJson('/api/invoices', [
             'user_id' => $customer->id,

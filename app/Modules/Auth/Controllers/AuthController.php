@@ -3,7 +3,9 @@
 namespace App\Modules\Auth\Controllers;
 
 use App\Modules\Auth\DTOs\LoginData;
+use App\Modules\Auth\DTOs\RegisterData;
 use App\Modules\Auth\Requests\LoginRequest;
+use App\Modules\Auth\Requests\RegisterRequest;
 use App\Modules\Auth\Services\AuthService;
 use App\Modules\Shared\Http\Controllers\ApiController;
 use App\Modules\Users\Resources\UserResource;
@@ -26,6 +28,18 @@ class AuthController extends ApiController
             'expires_at' => $result['expires_at'],
             'user' => (new UserResource($result['user']))->resolve(),
         ], 'Login successful.');
+    }
+
+    public function register(RegisterRequest $request): JsonResponse
+    {
+        $result = $this->authService->register(RegisterData::fromArray($request->validated()));
+
+        return $this->success([
+            'token' => $result['token'],
+            'token_type' => 'Bearer',
+            'expires_at' => $result['expires_at'],
+            'user' => (new UserResource($result['user']))->resolve(),
+        ], 'Registration successful.', status: 201);
     }
 
     public function me(Request $request): JsonResponse

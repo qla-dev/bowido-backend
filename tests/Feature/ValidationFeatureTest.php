@@ -14,7 +14,7 @@ class ValidationFeatureTest extends TestCase
     {
         $admin = $this->makeUser('admin');
         $customer = $this->makeUser('customer');
-        $status = Status::query()->where('slug', 'received')->firstOrFail();
+        $status = Status::query()->where('slug', 'bowido_warehouse')->firstOrFail();
 
         $this->actingAs($admin, 'api')->postJson('/api/pallets', [
             'user_id' => $customer->id,

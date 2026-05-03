@@ -13,6 +13,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             ReferenceDataSeeder::class,
+            MockDataSeeder::class,
         ]);
     }
 }
