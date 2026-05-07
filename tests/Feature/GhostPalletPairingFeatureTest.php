@@ -2,11 +2,10 @@
 
 namespace Tests\Feature;
 
-use App\Modules\AuditLogs\Models\AuditLog;
-use App\Modules\GhostPalletReports\Models\GhostPalletReport;
-use App\Modules\Pallets\Models\Pallet;
-use App\Modules\Shared\Enums\AuditEventType;
-use App\Modules\Statuses\Models\Status;
+use App\Models\AuditLog;
+use App\Models\GhostPalletReport;
+use App\Models\Pallet;
+use App\Models\Status;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -49,7 +48,7 @@ class GhostPalletPairingFeatureTest extends TestCase
         $this->assertNotNull($pairedGhostReport->paired_at);
         $this->assertDatabaseHas('audit_logs', [
             'pallet_id' => $pallet->id,
-            'event_type' => AuditEventType::GhostPaired->value,
+            'event_type' => AuditLog::EVENT_GHOST_PAIRED,
         ]);
     }
 }

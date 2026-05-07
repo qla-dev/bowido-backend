@@ -2,10 +2,10 @@
 
 namespace Database\Factories;
 
-use App\Modules\AuditLogs\Models\AuditLog;
-use App\Modules\Pallets\Models\Pallet;
-use App\Modules\Statuses\Models\Status;
-use App\Modules\Users\Models\User;
+use App\Models\AuditLog;
+use App\Models\Pallet;
+use App\Models\Status;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -28,6 +28,7 @@ class AuditLogFactory extends Factory
             'new_client_id' => null,
             'old_location' => fake()->city(),
             'new_location' => fake()->city(),
+            'qr_code_version' => fake()->numberBetween(1, 10),
             'old_qr_code' => fake()->bothify('OLD-######'),
             'new_qr_code' => fake()->bothify('NEW-######'),
             'context' => ['source' => 'factory'],

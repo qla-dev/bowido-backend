@@ -2,9 +2,9 @@
 
 namespace Database\Factories;
 
-use App\Modules\Modules\Models\Module;
-use App\Modules\RolePermissions\Models\RolePermission;
-use App\Modules\Roles\Models\Role;
+use App\Models\Module;
+use App\Models\RolePermission;
+use App\Models\Role;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**

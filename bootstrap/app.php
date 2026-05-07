@@ -28,6 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return response()->json([
+                'success' => false,
                 'data' => null,
                 'message' => 'The given data was invalid.',
                 'meta' => [],
@@ -41,6 +42,7 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return response()->json([
+                'success' => false,
                 'data' => null,
                 'message' => $exception->getMessage() !== '' ? $exception->getMessage() : 'Unauthenticated.',
                 'meta' => [],
@@ -54,6 +56,7 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return response()->json([
+                'success' => false,
                 'data' => null,
                 'message' => $exception->getMessage() !== '' ? $exception->getMessage() : 'This action is unauthorized.',
                 'meta' => [],
@@ -67,6 +70,7 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return response()->json([
+                'success' => false,
                 'data' => null,
                 'message' => 'Resource not found.',
                 'meta' => [],
@@ -80,6 +84,7 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return response()->json([
+                'success' => false,
                 'data' => null,
                 'message' => $exception->getMessage() !== '' ? $exception->getMessage() : Response::$statusTexts[$exception->getStatusCode()],
                 'meta' => [],
@@ -105,6 +110,7 @@ return Application::configure(basePath: dirname(__DIR__))
             report($exception);
 
             return response()->json([
+                'success' => false,
                 'data' => null,
                 'message' => (bool) config('app.debug')
                     ? $exception->getMessage()

@@ -2,8 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Modules\Invoices\Models\Invoice;
-use App\Modules\Shared\Enums\ModuleKey;
+use App\Models\Invoice;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -23,7 +22,7 @@ class AuthorizationFeatureTest extends TestCase
     public function test_customer_cannot_view_another_customers_invoice(): void
     {
         $customerRole = $this->role('customer');
-        $this->grantPermissions($customerRole, [ModuleKey::Invoices->value], [
+        $this->grantPermissions($customerRole, ['invoices'], [
             'can_list' => true,
             'can_view' => true,
         ]);

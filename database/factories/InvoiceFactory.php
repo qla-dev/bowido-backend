@@ -2,9 +2,8 @@
 
 namespace Database\Factories;
 
-use App\Modules\Invoices\Models\Invoice;
-use App\Modules\Shared\Enums\InvoiceStatus;
-use App\Modules\Users\Models\User;
+use App\Models\Invoice;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -22,7 +21,7 @@ class InvoiceFactory extends Factory
         return [
             'user_id' => User::factory()->customer(),
             'invoice_number' => 'INV-'.fake()->unique()->numerify('######'),
-            'status' => InvoiceStatus::Issued->value,
+            'status' => Invoice::STATUS_ISSUED,
             'currency' => 'EUR',
             'period_start' => $periodStart,
             'period_end' => $periodEnd,

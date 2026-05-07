@@ -2,19 +2,15 @@
 
 namespace Database\Seeders;
 
-use App\Modules\Modules\Models\Module;
-use App\Modules\Roles\Models\Role;
-use App\Modules\RolePermissions\Models\RolePermission;
-use App\Modules\Shared\Enums\ModuleKey;
-use App\Modules\Statuses\Models\Status;
+use App\Models\Module;
+use App\Models\Role;
+use App\Models\RolePermission;
+use App\Models\Status;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
 class ReferenceDataSeeder extends Seeder
 {
-    /**
-     * Seed core lookup data.
-     */
     public function run(): void
     {
         $roles = collect([
@@ -37,19 +33,31 @@ class ReferenceDataSeeder extends Seeder
             ];
         });
 
-        $modules = collect(ModuleKey::cases())
-            ->mapWithKeys(function (ModuleKey $moduleKey): array {
-                $module = Module::query()->firstOrCreate(
-                    ['slug' => $moduleKey->value],
-                    [
-                        'name' => Str::headline(str_replace('_', ' ', $moduleKey->value)),
-                        'description' => Str::headline(str_replace('_', ' ', $moduleKey->value)).' module',
-                        'is_active' => true,
-                    ],
-                );
+        $modules = collect([
+            'roles',
+            'users',
+            'customer_details',
+            'statuses',
+            'pallets',
+            'audit_logs',
+            'service_reports',
+            'ghost_pallet_reports',
+            'invoices',
+            'invoice_items',
+            'modules',
+            'role_permissions',
+        ])->mapWithKeys(function (string $slug): array {
+            $module = Module::query()->firstOrCreate(
+                ['slug' => $slug],
+                [
+                    'name' => Str::headline(str_replace('_', ' ', $slug)),
+                    'description' => Str::headline(str_replace('_', ' ', $slug)).' module',
+                    'is_active' => true,
+                ],
+            );
 
-                return [$moduleKey->value => $module];
-            });
+            return [$slug => $module];
+        });
 
         foreach ($modules as $module) {
             RolePermission::query()->updateOrCreate(
@@ -114,10 +122,7 @@ class ReferenceDataSeeder extends Seeder
                 'sort_order' => 60,
             ],
         ])->each(function (array $status): void {
-            Status::query()->updateOrCreate(
-                ['slug' => $status['slug']],
-                $status,
-            );
+            Status::query()->updateOrCreate(['slug' => $status['slug']], $status);
         });
     }
 }

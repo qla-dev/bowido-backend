@@ -2,10 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Modules\AuditLogs\Models\AuditLog;
-use App\Modules\Pallets\Models\Pallet;
-use App\Modules\Shared\Enums\AuditEventType;
-use App\Modules\Statuses\Models\Status;
+use App\Models\AuditLog;
+use App\Models\Pallet;
+use App\Models\Status;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -38,7 +37,7 @@ class PalletLifecycleFeatureTest extends TestCase
 
         $this->assertDatabaseHas('audit_logs', [
             'pallet_id' => $pallet->id,
-            'event_type' => AuditEventType::Created->value,
+            'event_type' => AuditLog::EVENT_CREATED,
         ]);
 
         $updateResponse = $this->actingAs($admin, 'api')->putJson('/api/pallets/'.$pallet->id, [
@@ -66,11 +65,11 @@ class PalletLifecycleFeatureTest extends TestCase
             ->all();
 
         $this->assertEqualsCanonicalizing([
-            AuditEventType::Created->value,
-            AuditEventType::StatusChanged->value,
-            AuditEventType::ClientChanged->value,
-            AuditEventType::LocationChanged->value,
-            AuditEventType::QrCodeChanged->value,
+            AuditLog::EVENT_CREATED,
+            AuditLog::EVENT_STATUS_CHANGED,
+            AuditLog::EVENT_CLIENT_CHANGED,
+            AuditLog::EVENT_LOCATION_CHANGED,
+            AuditLog::EVENT_QR_CODE_CHANGED,
         ], $events);
 
         $this->assertNotNull($pallet->fresh()->last_status_changed_at);

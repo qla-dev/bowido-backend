@@ -2,10 +2,10 @@
 
 namespace Tests;
 
-use App\Modules\Modules\Models\Module;
-use App\Modules\RolePermissions\Models\RolePermission;
-use App\Modules\Roles\Models\Role;
-use App\Modules\Users\Models\User;
+use App\Models\Module;
+use App\Models\RolePermission;
+use App\Models\Role;
+use App\Models\User;
 use Database\Seeders\ReferenceDataSeeder;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 

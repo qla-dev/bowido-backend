@@ -2,10 +2,10 @@
 
 namespace Tests\Feature;
 
-use App\Modules\AuditLogs\Models\AuditLog;
-use App\Modules\CustomerDetails\Models\CustomerDetail;
-use App\Modules\Pallets\Models\Pallet;
-use App\Modules\Statuses\Models\Status;
+use App\Models\AuditLog;
+use App\Models\CustomerDetail;
+use App\Models\Pallet;
+use App\Models\Status;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;

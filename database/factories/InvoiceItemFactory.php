@@ -2,9 +2,9 @@
 
 namespace Database\Factories;
 
-use App\Modules\InvoiceItems\Models\InvoiceItem;
-use App\Modules\Invoices\Models\Invoice;
-use App\Modules\Pallets\Models\Pallet;
+use App\Models\InvoiceItem;
+use App\Models\Invoice;
+use App\Models\Pallet;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**

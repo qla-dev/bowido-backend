@@ -2,9 +2,9 @@
 
 namespace Database\Factories;
 
-use App\Modules\Pallets\Models\Pallet;
-use App\Modules\Statuses\Models\Status;
-use App\Modules\Users\Models\User;
+use App\Models\Pallet;
+use App\Models\Status;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**

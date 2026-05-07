@@ -2,11 +2,11 @@
 
 namespace Database\Seeders;
 
-use App\Modules\CustomerDetails\Models\CustomerDetail;
-use App\Modules\Pallets\Models\Pallet;
-use App\Modules\Roles\Models\Role;
-use App\Modules\Statuses\Models\Status;
-use App\Modules\Users\Models\User;
+use App\Models\CustomerDetail;
+use App\Models\Pallet;
+use App\Models\Role;
+use App\Models\Status;
+use App\Models\User;
 use Illuminate\Database\Seeder;
 
 class MockDataSeeder extends Seeder

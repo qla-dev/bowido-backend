@@ -2,11 +2,11 @@
 
 namespace Tests\Unit;
 
-use App\Modules\CustomerDetails\Models\CustomerDetail;
-use App\Modules\InvoiceItems\Models\InvoiceItem;
-use App\Modules\Invoices\Models\Invoice;
-use App\Modules\Pallets\Models\Pallet;
-use App\Modules\Statuses\Models\Status;
+use App\Models\CustomerDetail;
+use App\Models\InvoiceItem;
+use App\Models\Invoice;
+use App\Models\Pallet;
+use App\Models\Status;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;

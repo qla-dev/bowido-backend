@@ -2,8 +2,8 @@
 
 namespace Database\Factories;
 
-use App\Modules\Roles\Models\Role;
-use App\Modules\Users\Models\User;
+use App\Models\Role;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 
