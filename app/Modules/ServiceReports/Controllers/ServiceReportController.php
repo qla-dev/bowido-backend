@@ -26,7 +26,7 @@ class ServiceReportController extends ApiController
         return $this->successCollection(
             $this->serviceReportService->paginate(ListQueryData::fromRequest($request), $request->user()),
             ServiceReportResource::class,
-            'Service reports retrieved successfully.',
+            __('Service reports retrieved successfully.'),
         );
     }
 
@@ -42,7 +42,7 @@ class ServiceReportController extends ApiController
             $request->user(),
         );
 
-        return $this->successItem($serviceReport, ServiceReportResource::class, 'Service report created successfully.', 201);
+        return $this->successItem($serviceReport, ServiceReportResource::class, __('Service report created successfully.'), 201);
     }
 
     public function show(ServiceReport $serviceReport): JsonResponse
@@ -52,7 +52,7 @@ class ServiceReportController extends ApiController
         return $this->successItem(
             $this->serviceReportService->find($serviceReport->id, request()->user()),
             ServiceReportResource::class,
-            'Service report retrieved successfully.',
+            __('Service report retrieved successfully.'),
         );
     }
 
@@ -70,7 +70,7 @@ class ServiceReportController extends ApiController
             $request->user(),
         );
 
-        return $this->successItem($updatedServiceReport, ServiceReportResource::class, 'Service report updated successfully.');
+        return $this->successItem($updatedServiceReport, ServiceReportResource::class, __('Service report updated successfully.'));
     }
 
     public function destroy(ServiceReport $serviceReport): JsonResponse
@@ -79,6 +79,6 @@ class ServiceReportController extends ApiController
 
         $this->serviceReportService->delete($serviceReport->id, request()->user());
 
-        return $this->success(null, 'Service report deleted successfully.');
+        return $this->success(null, __('Service report deleted successfully.'));
     }
 }

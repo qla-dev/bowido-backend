@@ -20,7 +20,7 @@ abstract class ApiController extends Controller
         abort_if(
             $response->denied(),
             Response::HTTP_FORBIDDEN,
-            is_string($message) && $message !== '' ? $message : 'This action is unauthorized.',
+            is_string($message) && $message !== '' ? $message : __('This action is unauthorized.'),
         );
 
         return $response;
@@ -34,8 +34,8 @@ abstract class ApiController extends Controller
         int $status = 200,
     ): JsonResponse {
         return response()->json([
-            'data' => $data,
             'message' => $message,
+            'data' => $data,
             'meta' => $meta,
             'errors' => $errors,
         ], $status);

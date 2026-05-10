@@ -9,6 +9,6 @@ class ModulePolicy extends BaseModulePolicy
 {
     protected function moduleKey(): ModuleKey
     {
-        return ModuleKey::Modules;
+        return ModuleKey::Roles;
     }
 }

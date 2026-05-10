@@ -27,8 +27,6 @@ class GhostPalletReportResource extends JsonResource
             'notes' => $this->notes,
             'paired_at' => $this->paired_at,
             'metadata' => $this->metadata,
-            'created_at' => $this->created_at,
-            'updated_at' => $this->updated_at,
             'user' => new UserResource($this->whenLoaded('user')),
             'paired_pallet' => new PalletResource($this->whenLoaded('pairedPallet')),
         ];

@@ -28,7 +28,7 @@ class UserService extends BaseCrudService
 
             $this->syncCustomerDetails($user, $data);
 
-            return $user->refresh()->load(['role', 'customerDetail']);
+            return $user->refresh()->load(['role.rolePermissions.module', 'customerDetail']);
         });
     }
 
@@ -40,7 +40,7 @@ class UserService extends BaseCrudService
 
             $this->syncCustomerDetails($updatedUser, $data);
 
-            return $updatedUser->refresh()->load(['role', 'customerDetail']);
+            return $updatedUser->refresh()->load(['role.rolePermissions.module', 'customerDetail']);
         });
     }
 

@@ -30,8 +30,6 @@ class InvoiceResource extends JsonResource
             'subtotal_amount' => $this->subtotal_amount,
             'total_amount' => $this->total_amount,
             'notes' => $this->notes,
-            'created_at' => $this->created_at,
-            'updated_at' => $this->updated_at,
             'user' => new UserResource($this->whenLoaded('user')),
             'items' => InvoiceItemResource::collection($this->whenLoaded('items')),
         ];

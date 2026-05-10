@@ -28,8 +28,6 @@ class CustomerDetailResource extends JsonResource
             'grace_period_days' => $this->grace_period_days,
             'notes' => $this->notes,
             'is_active' => $this->is_active,
-            'created_at' => $this->created_at,
-            'updated_at' => $this->updated_at,
             'user' => new UserResource($this->whenLoaded('user')),
         ];
     }

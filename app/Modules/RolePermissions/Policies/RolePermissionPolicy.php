@@ -9,6 +9,6 @@ class RolePermissionPolicy extends BaseModulePolicy
 {
     protected function moduleKey(): ModuleKey
     {
-        return ModuleKey::RolePermissions;
+        return ModuleKey::Roles;
     }
 }

@@ -26,7 +26,7 @@ class InvoiceController extends ApiController
         return $this->successCollection(
             $this->invoiceService->paginate(ListQueryData::fromRequest($request), $request->user()),
             InvoiceResource::class,
-            'Invoices retrieved successfully.',
+            __('Invoices retrieved successfully.'),
         );
     }
 
@@ -36,7 +36,7 @@ class InvoiceController extends ApiController
 
         $invoice = $this->invoiceService->create(InvoiceData::fromArray($request->validated()));
 
-        return $this->successItem($invoice, InvoiceResource::class, 'Invoice created successfully.', 201);
+        return $this->successItem($invoice, InvoiceResource::class, __('Invoice created successfully.'), 201);
     }
 
     public function show(Invoice $invoice): JsonResponse
@@ -46,7 +46,7 @@ class InvoiceController extends ApiController
         return $this->successItem(
             $this->invoiceService->find($invoice->id, request()->user()),
             InvoiceResource::class,
-            'Invoice retrieved successfully.',
+            __('Invoice retrieved successfully.'),
         );
     }
 
@@ -59,7 +59,7 @@ class InvoiceController extends ApiController
             ...$request->validated(),
         ]));
 
-        return $this->successItem($updatedInvoice, InvoiceResource::class, 'Invoice updated successfully.');
+        return $this->successItem($updatedInvoice, InvoiceResource::class, __('Invoice updated successfully.'));
     }
 
     public function destroy(Invoice $invoice): JsonResponse
@@ -68,6 +68,6 @@ class InvoiceController extends ApiController
 
         $this->invoiceService->delete($invoice->id, request()->user());
 
-        return $this->success(null, 'Invoice deleted successfully.');
+        return $this->success(null, __('Invoice deleted successfully.'));
     }
 }

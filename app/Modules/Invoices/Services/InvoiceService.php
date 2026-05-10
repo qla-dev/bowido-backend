@@ -27,7 +27,7 @@ class InvoiceService extends BaseCrudService
 
         if (! $user->is_active) {
             throw ValidationException::withMessages([
-                'user_id' => ['The selected user is not active.'],
+                'user_id' => [__('The selected user is not active.')],
             ]);
         }
 
@@ -47,7 +47,7 @@ class InvoiceService extends BaseCrudService
 
         if (! $user->is_active) {
             throw ValidationException::withMessages([
-                'user_id' => ['The selected user is not active.'],
+                'user_id' => [__('The selected user is not active.')],
             ]);
         }
 

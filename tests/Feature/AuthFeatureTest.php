@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Modules\Users\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -10,40 +9,39 @@ class AuthFeatureTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_user_can_register_fetch_profile_and_logout(): void
+    public function test_user_can_register_without_creating_api_token(): void
     {
-        $registerResponse = $this->postJson('/api/auth/register', [
+        $admin = $this->makeUser('admin');
+        $role = $this->role('operator');
+
+        $registerResponse = $this->actingAs($admin, 'api')->postJson('/api/auth/register', [
+            'role_id' => $role->id,
             'name' => 'Limited User',
             'email' => 'user@example.com',
             'phone_number' => '+387 61 123 456',
             'password' => 'password123',
             'password_confirmation' => 'password123',
-            'token_name' => 'registration-test',
         ]);
 
         $registerResponse
             ->assertCreated()
-            ->assertJsonPath('data.user.email', 'user@example.com')
-            ->assertJsonPath('data.user.role.name', 'user')
-            ->assertJsonPath('data.user.phone_number', '+38761123456')
+            ->assertJsonPath('data.email', 'user@example.com')
+            ->assertJsonPath('data.role.name', 'operator')
+            ->assertJsonPath('data.phone_number', '+38761123456')
             ->assertJsonStructure([
-                'data' => ['token', 'token_type', 'expires_at', 'user'],
+                'data' => ['id', 'role_id', 'name', 'email', 'phone_number', 'is_active', 'role', 'customer_detail'],
                 'message',
                 'meta',
                 'errors',
             ]);
 
-        $token = $registerResponse->json('data.token');
+        $registerData = $registerResponse->json('data');
 
-        $this->withHeader('Authorization', 'Bearer '.$token)
-            ->getJson('/api/auth/me')
-            ->assertOk()
-            ->assertJsonPath('data.email', 'user@example.com');
-
-        $this->withHeader('Authorization', 'Bearer '.$token)
-            ->postJson('/api/auth/logout')
-            ->assertOk()
-            ->assertJsonPath('message', 'Logout successful.');
+        $this->assertIsArray($registerData);
+        $this->assertArrayNotHasKey('token', $registerData);
+        $this->assertArrayNotHasKey('created_at', $registerData);
+        $this->assertArrayNotHasKey('updated_at', $registerData);
+        $this->assertStringStartsWith('{"message":"Registration successful.","data":', $registerResponse->getContent());
 
         $this->assertDatabaseHas('users', [
             'email' => 'user@example.com',
@@ -52,8 +50,23 @@ class AuthFeatureTest extends TestCase
         $this->assertDatabaseCount('api_tokens', 0);
     }
 
-    public function test_user_can_login_fetch_profile_and_logout(): void
+    public function test_guest_cannot_register_user(): void
     {
+        $role = $this->role('operator');
+
+        $this->postJson('/api/auth/register', [
+            'role_id' => $role->id,
+            'name' => 'Limited User',
+            'email' => 'user@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])->assertUnauthorized();
+    }
+
+    public function test_user_can_login_create_session_and_token_fetch_profile_and_logout(): void
+    {
+        config(['session.driver' => 'database']);
+
         $user = $this->makeUser('admin', [
             'email' => 'admin@example.com',
             'password' => 'password123',
@@ -67,25 +80,209 @@ class AuthFeatureTest extends TestCase
 
         $loginResponse
             ->assertOk()
+            ->assertJsonPath('data.token_type', 'Bearer')
             ->assertJsonPath('data.user.email', 'admin@example.com')
+            ->assertJsonPath('data.user.role.name', 'admin')
             ->assertJsonStructure([
-                'data' => ['token', 'token_type', 'expires_at', 'user'],
+                'data' => ['token', 'token_type', 'expires_at', 'session_expires_at', 'user'],
+                'message',
+                'meta',
+                'errors',
+            ]);
+
+        $rolePermissions = $loginResponse->json('data.user.role.role_permissions');
+        $userData = $loginResponse->json('data.user');
+        $token = $loginResponse->json('data.token');
+        $tokenExpiresAt = $loginResponse->json('data.expires_at');
+        $sessionExpiresAt = $loginResponse->json('data.session_expires_at');
+        $sessionCookie = $loginResponse->getCookie(config('session.cookie'));
+        $sessionCookieName = config('session.cookie');
+        $sessionCookieValue = $sessionCookie?->getValue();
+
+        $this->assertIsArray($rolePermissions);
+        $this->assertNotEmpty($rolePermissions);
+        $this->assertIsArray($userData);
+        $this->assertArrayNotHasKey('created_at', $userData);
+        $this->assertArrayNotHasKey('updated_at', $userData);
+        $this->assertStringStartsWith('{"message":"Login successful.","data":', $loginResponse->getContent());
+        $this->assertNotNull($token);
+        $this->assertNotNull($tokenExpiresAt);
+        $this->assertNotNull($sessionExpiresAt);
+        $this->assertNotNull($sessionCookie);
+        $this->assertNotNull($sessionCookieValue);
+        $this->assertEqualsWithDelta(
+            now()->addMinutes(config('session.lifetime'))->getTimestamp(),
+            strtotime($tokenExpiresAt),
+            120,
+        );
+        $this->assertEqualsWithDelta(
+            now()->addMinutes(config('session.lifetime'))->getTimestamp(),
+            strtotime($sessionExpiresAt),
+            120,
+        );
+        $this->assertEqualsWithDelta(
+            now()->addMinutes(config('session.lifetime'))->getTimestamp(),
+            $sessionCookie->getExpiresTime(),
+            120,
+        );
+        $loginResponse->assertSessionHas('auth_token', $token);
+        $loginResponse->assertSessionHas('auth_token_expires_at', $tokenExpiresAt);
+        $loginResponse->assertSessionHas(
+            app('auth')->guard('web')->getName(),
+            (string) $user->getAuthIdentifier(),
+        );
+
+        app('auth')->forgetGuards();
+
+        $this->call(
+            'GET',
+            '/api/auth/me',
+            [],
+            [$sessionCookieName => $sessionCookieValue],
+            [],
+            ['HTTP_ACCEPT' => 'application/json'],
+        )
+            ->assertOk()
+            ->assertJsonPath('data.email', 'admin@example.com');
+
+        app('auth')->forgetGuards();
+
+        $this->call(
+            'GET',
+            '/api/auth/me',
+            [],
+            [],
+            [],
+            [
+                'HTTP_ACCEPT' => 'application/json',
+                'HTTP_AUTHORIZATION' => 'Bearer '.$token,
+            ],
+        )
+            ->assertOk()
+            ->assertJsonPath('data.email', 'admin@example.com');
+
+        app('auth')->forgetGuards();
+
+        $this->call(
+            'POST',
+            '/api/auth/logout',
+            [],
+            [$sessionCookieName => $sessionCookieValue],
+            [],
+            ['HTTP_ACCEPT' => 'application/json'],
+        )
+            ->assertOk()
+            ->assertJsonPath('message', 'Logout successful.');
+
+        app('auth')->forgetGuards();
+
+        $this->call(
+            'GET',
+            '/api/auth/me',
+            [],
+            [$sessionCookieName => $sessionCookieValue],
+            [],
+            ['HTTP_ACCEPT' => 'application/json'],
+        )
+            ->assertUnauthorized();
+
+        app('auth')->forgetGuards();
+
+        $this->call(
+            'GET',
+            '/api/auth/me',
+            [],
+            [],
+            [],
+            [
+                'HTTP_ACCEPT' => 'application/json',
+                'HTTP_AUTHORIZATION' => 'Bearer '.$token,
+            ],
+        )
+            ->assertUnauthorized();
+
+        $this->assertDatabaseCount('api_tokens', 0);
+    }
+
+    public function test_user_can_use_login_token_without_session_cookie(): void
+    {
+        app('auth')->forgetGuards();
+
+        $user = $this->makeUser('admin', [
+            'email' => 'admin@example.com',
+            'password' => 'password123',
+        ]);
+
+        $loginResponse = $this->postJson('/api/auth/login', [
+            'email' => $user->email,
+            'password' => 'password123',
+            'token_name' => 'feature-test',
+        ]);
+
+        $loginResponse
+            ->assertOk()
+            ->assertJsonPath('data.token_type', 'Bearer')
+            ->assertJsonPath('data.user.email', 'admin@example.com')
+            ->assertJsonPath('data.user.role.name', 'admin')
+            ->assertJsonStructure([
+                'data' => ['token', 'token_type', 'expires_at', 'session_expires_at', 'user'],
                 'message',
                 'meta',
                 'errors',
             ]);
 
         $token = $loginResponse->json('data.token');
+        $tokenExpiresAt = $loginResponse->json('data.expires_at');
+        $this->assertNotNull($token);
+        $this->assertNotNull($tokenExpiresAt);
+        $this->assertDatabaseCount('api_tokens', 1);
 
-        $this->withHeader('Authorization', 'Bearer '.$token)
-            ->getJson('/api/auth/me')
+        app('auth')->forgetGuards();
+
+        $this->call(
+            'GET',
+            '/api/auth/me',
+            [],
+            [],
+            [],
+            [
+                'HTTP_ACCEPT' => 'application/json',
+                'HTTP_AUTHORIZATION' => 'Bearer '.$token,
+            ],
+        )
             ->assertOk()
             ->assertJsonPath('data.email', 'admin@example.com');
 
-        $this->withHeader('Authorization', 'Bearer '.$token)
-            ->postJson('/api/auth/logout')
+        app('auth')->forgetGuards();
+
+        $this->call(
+            'POST',
+            '/api/auth/logout',
+            [],
+            [],
+            [],
+            [
+                'HTTP_ACCEPT' => 'application/json',
+                'HTTP_AUTHORIZATION' => 'Bearer '.$token,
+            ],
+        )
             ->assertOk()
             ->assertJsonPath('message', 'Logout successful.');
+
+        app('auth')->forgetGuards();
+
+        $this->call(
+            'GET',
+            '/api/auth/me',
+            [],
+            [],
+            [],
+            [
+                'HTTP_ACCEPT' => 'application/json',
+                'HTTP_AUTHORIZATION' => 'Bearer '.$token,
+            ],
+        )
+            ->assertUnauthorized();
 
         $this->assertDatabaseCount('api_tokens', 0);
     }
@@ -97,10 +294,12 @@ class AuthFeatureTest extends TestCase
             'password' => 'password123',
         ]);
 
-        $this->postJson('/api/auth/login', [
+        $response = $this->postJson('/api/auth/login', [
             'email' => $user->email,
             'password' => 'wrong-password',
         ])->assertUnauthorized();
+
+        $this->assertStringStartsWith('{"message":"Invalid credentials.","data":null,', $response->getContent());
 
         $this->assertDatabaseMissing('api_tokens', [
             'user_id' => $user->id,
@@ -109,11 +308,13 @@ class AuthFeatureTest extends TestCase
 
     public function test_registration_requires_unique_email(): void
     {
+        $admin = $this->makeUser('admin');
         $this->makeUser('user', [
             'email' => 'user@example.com',
         ]);
 
-        $this->postJson('/api/auth/register', [
+        $this->actingAs($admin, 'api')->postJson('/api/auth/register', [
+            'role_id' => $this->role('user')->id,
             'name' => 'Duplicate User',
             'email' => 'user@example.com',
             'password' => 'password123',

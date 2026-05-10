@@ -26,7 +26,7 @@ class InvoiceItemController extends ApiController
         return $this->successCollection(
             $this->invoiceItemService->paginate(ListQueryData::fromRequest($request), $request->user()),
             InvoiceItemResource::class,
-            'Invoice items retrieved successfully.',
+            __('Invoice items retrieved successfully.'),
         );
     }
 
@@ -36,7 +36,7 @@ class InvoiceItemController extends ApiController
 
         $invoiceItem = $this->invoiceItemService->create(InvoiceItemData::fromArray($request->validated()));
 
-        return $this->successItem($invoiceItem, InvoiceItemResource::class, 'Invoice item created successfully.', 201);
+        return $this->successItem($invoiceItem, InvoiceItemResource::class, __('Invoice item created successfully.'), 201);
     }
 
     public function show(InvoiceItem $invoiceItem): JsonResponse
@@ -46,7 +46,7 @@ class InvoiceItemController extends ApiController
         return $this->successItem(
             $this->invoiceItemService->find($invoiceItem->id, request()->user()),
             InvoiceItemResource::class,
-            'Invoice item retrieved successfully.',
+            __('Invoice item retrieved successfully.'),
         );
     }
 
@@ -59,7 +59,7 @@ class InvoiceItemController extends ApiController
             ...$request->validated(),
         ]));
 
-        return $this->successItem($updatedInvoiceItem, InvoiceItemResource::class, 'Invoice item updated successfully.');
+        return $this->successItem($updatedInvoiceItem, InvoiceItemResource::class, __('Invoice item updated successfully.'));
     }
 
     public function destroy(InvoiceItem $invoiceItem): JsonResponse
@@ -68,6 +68,6 @@ class InvoiceItemController extends ApiController
 
         $this->invoiceItemService->delete($invoiceItem->id, request()->user());
 
-        return $this->success(null, 'Invoice item deleted successfully.');
+        return $this->success(null, __('Invoice item deleted successfully.'));
     }
 }

@@ -35,7 +35,7 @@ class GhostPalletReportService extends BaseCrudService
 
         if (! $user->is_active) {
             throw ValidationException::withMessages([
-                'user_id' => ['The selected user is not active.'],
+                'user_id' => [__('The selected user is not active.')],
             ]);
         }
 
@@ -64,7 +64,7 @@ class GhostPalletReportService extends BaseCrudService
 
             if (! $user->is_active) {
                 throw ValidationException::withMessages([
-                    'user_id' => ['The selected user is not active.'],
+                    'user_id' => [__('The selected user is not active.')],
                 ]);
             }
 
@@ -83,7 +83,7 @@ class GhostPalletReportService extends BaseCrudService
                 && $lockedGhostPalletReport->paired_pallet_id !== $data->pairedPalletId
             ) {
                 throw ValidationException::withMessages([
-                    'paired_pallet_id' => ['Paired ghost pallet reports cannot be re-assigned to a different pallet.'],
+                    'paired_pallet_id' => [__('Paired ghost pallet reports cannot be re-assigned to a different pallet.')],
                 ]);
             }
 

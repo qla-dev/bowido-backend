@@ -26,7 +26,7 @@ class GhostPalletReportController extends ApiController
         return $this->successCollection(
             $this->ghostPalletReportService->paginate(ListQueryData::fromRequest($request), $request->user()),
             GhostPalletReportResource::class,
-            'Ghost pallet reports retrieved successfully.',
+            __('Ghost pallet reports retrieved successfully.'),
         );
     }
 
@@ -39,7 +39,7 @@ class GhostPalletReportController extends ApiController
             $request->user(),
         );
 
-        return $this->successItem($ghostPalletReport, GhostPalletReportResource::class, 'Ghost pallet report created successfully.', 201);
+        return $this->successItem($ghostPalletReport, GhostPalletReportResource::class, __('Ghost pallet report created successfully.'), 201);
     }
 
     public function show(GhostPalletReport $ghostPalletReport): JsonResponse
@@ -49,7 +49,7 @@ class GhostPalletReportController extends ApiController
         return $this->successItem(
             $this->ghostPalletReportService->find($ghostPalletReport->id, request()->user()),
             GhostPalletReportResource::class,
-            'Ghost pallet report retrieved successfully.',
+            __('Ghost pallet report retrieved successfully.'),
         );
     }
 
@@ -66,7 +66,7 @@ class GhostPalletReportController extends ApiController
             $request->user(),
         );
 
-        return $this->successItem($updatedGhostPalletReport, GhostPalletReportResource::class, 'Ghost pallet report updated successfully.');
+        return $this->successItem($updatedGhostPalletReport, GhostPalletReportResource::class, __('Ghost pallet report updated successfully.'));
     }
 
     public function destroy(GhostPalletReport $ghostPalletReport): JsonResponse
@@ -75,6 +75,6 @@ class GhostPalletReportController extends ApiController
 
         $this->ghostPalletReportService->delete($ghostPalletReport->id, request()->user());
 
-        return $this->success(null, 'Ghost pallet report deleted successfully.');
+        return $this->success(null, __('Ghost pallet report deleted successfully.'));
     }
 }

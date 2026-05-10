@@ -22,7 +22,7 @@ class UserRepository extends BaseRepository
 
     protected function relations(): array
     {
-        return ['role', 'customerDetail'];
+        return ['role.rolePermissions.module', 'customerDetail'];
     }
 
     protected function scopeForActor(Builder $query, ?User $actor): Builder

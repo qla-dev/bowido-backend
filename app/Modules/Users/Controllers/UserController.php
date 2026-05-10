@@ -26,7 +26,7 @@ class UserController extends ApiController
         return $this->successCollection(
             $this->userService->paginate(ListQueryData::fromRequest($request), $request->user()),
             UserResource::class,
-            'Users retrieved successfully.',
+            __('Users retrieved successfully.'),
         );
     }
 
@@ -36,7 +36,7 @@ class UserController extends ApiController
 
         $user = $this->userService->create(UserData::fromArray($request->validated()));
 
-        return $this->successItem($user, UserResource::class, 'User created successfully.', 201);
+        return $this->successItem($user, UserResource::class, __('User created successfully.'), 201);
     }
 
     public function show(User $user): JsonResponse
@@ -46,7 +46,7 @@ class UserController extends ApiController
         return $this->successItem(
             $this->userService->find($user->id, request()->user()),
             UserResource::class,
-            'User retrieved successfully.',
+            __('User retrieved successfully.'),
         );
     }
 
@@ -59,7 +59,7 @@ class UserController extends ApiController
             ...$request->validated(),
         ]));
 
-        return $this->successItem($updatedUser, UserResource::class, 'User updated successfully.');
+        return $this->successItem($updatedUser, UserResource::class, __('User updated successfully.'));
     }
 
     public function destroy(User $user): JsonResponse
@@ -68,6 +68,6 @@ class UserController extends ApiController
 
         $this->userService->delete($user->id, request()->user());
 
-        return $this->success(null, 'User deleted successfully.');
+        return $this->success(null, __('User deleted successfully.'));
     }
 }

@@ -25,8 +25,6 @@ class UserResource extends JsonResource
             'is_active' => $this->is_active,
             'email_verified_at' => $this->email_verified_at,
             'last_login_at' => $this->last_login_at,
-            'created_at' => $this->created_at,
-            'updated_at' => $this->updated_at,
             'role' => new RoleResource($this->whenLoaded('role')),
             'customer_detail' => new CustomerDetailResource($this->whenLoaded('customerDetail')),
         ];

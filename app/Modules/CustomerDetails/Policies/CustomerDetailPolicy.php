@@ -58,6 +58,6 @@ class CustomerDetailPolicy extends BaseModulePolicy
 
     protected function moduleKey(): ModuleKey
     {
-        return ModuleKey::CustomerDetails;
+        return ModuleKey::Customers;
     }
 }

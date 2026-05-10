@@ -26,7 +26,7 @@ class RoleController extends ApiController
         return $this->successCollection(
             $this->roleService->paginate(ListQueryData::fromRequest($request), $request->user()),
             RoleResource::class,
-            'Roles retrieved successfully.',
+            __('Roles retrieved successfully.'),
         );
     }
 
@@ -36,7 +36,7 @@ class RoleController extends ApiController
 
         $role = $this->roleService->create(RoleData::fromArray($request->validated()));
 
-        return $this->successItem($role, RoleResource::class, 'Role created successfully.', 201);
+        return $this->successItem($role, RoleResource::class, __('Role created successfully.'), 201);
     }
 
     public function show(Role $role): JsonResponse
@@ -46,7 +46,7 @@ class RoleController extends ApiController
         return $this->successItem(
             $this->roleService->find($role->id, request()->user()),
             RoleResource::class,
-            'Role retrieved successfully.',
+            __('Role retrieved successfully.'),
         );
     }
 
@@ -59,7 +59,7 @@ class RoleController extends ApiController
             ...$request->validated(),
         ]));
 
-        return $this->successItem($updatedRole, RoleResource::class, 'Role updated successfully.');
+        return $this->successItem($updatedRole, RoleResource::class, __('Role updated successfully.'));
     }
 
     public function destroy(Role $role): JsonResponse
@@ -68,6 +68,6 @@ class RoleController extends ApiController
 
         $this->roleService->delete($role->id, request()->user());
 
-        return $this->success(null, 'Role deleted successfully.');
+        return $this->success(null, __('Role deleted successfully.'));
     }
 }

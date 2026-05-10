@@ -26,7 +26,7 @@ class AuditLogController extends ApiController
         return $this->successCollection(
             $this->auditLogService->paginate(ListQueryData::fromRequest($request), $request->user()),
             AuditLogResource::class,
-            'Audit logs retrieved successfully.',
+            __('Audit logs retrieved successfully.'),
         );
     }
 
@@ -36,7 +36,7 @@ class AuditLogController extends ApiController
 
         $auditLog = $this->auditLogService->create(AuditLogData::fromArray($request->validated()), $request->user());
 
-        return $this->successItem($auditLog, AuditLogResource::class, 'Audit log created successfully.', 201);
+        return $this->successItem($auditLog, AuditLogResource::class, __('Audit log created successfully.'), 201);
     }
 
     public function show(AuditLog $auditLog): JsonResponse
@@ -46,7 +46,7 @@ class AuditLogController extends ApiController
         return $this->successItem(
             $this->auditLogService->find($auditLog->id, request()->user()),
             AuditLogResource::class,
-            'Audit log retrieved successfully.',
+            __('Audit log retrieved successfully.'),
         );
     }
 
@@ -59,7 +59,7 @@ class AuditLogController extends ApiController
             ...$request->validated(),
         ]));
 
-        return $this->successItem($updatedAuditLog, AuditLogResource::class, 'Audit log updated successfully.');
+        return $this->successItem($updatedAuditLog, AuditLogResource::class, __('Audit log updated successfully.'));
     }
 
     public function destroy(AuditLog $auditLog): JsonResponse
@@ -68,6 +68,6 @@ class AuditLogController extends ApiController
 
         $this->auditLogService->delete($auditLog->id, request()->user());
 
-        return $this->success(null, 'Audit log deleted successfully.');
+        return $this->success(null, __('Audit log deleted successfully.'));
     }
 }

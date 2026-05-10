@@ -27,7 +27,7 @@ class ServiceReportService extends BaseCrudService
         $pallet = $this->palletRepository->findOrFail($data->palletId, $actor);
 
         if ($actor->isCustomer() && $pallet->user_id !== $actor->id) {
-            throw new AuthorizationException('You are not allowed to create a report for this pallet.');
+            throw new AuthorizationException(__('You are not allowed to create a report for this pallet.'));
         }
 
         return DB::transaction(function () use ($data, $actor): ServiceReport {
@@ -59,7 +59,7 @@ class ServiceReportService extends BaseCrudService
                 && $data->status === ServiceReportStatus::Open->value
             ) {
                 throw ValidationException::withMessages([
-                    'status' => ['Resolved reports cannot be reopened through this endpoint.'],
+                    'status' => [__('Resolved reports cannot be reopened through this endpoint.')],
                 ]);
             }
 

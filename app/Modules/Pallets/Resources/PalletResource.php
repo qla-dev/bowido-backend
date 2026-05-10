@@ -29,8 +29,6 @@ class PalletResource extends JsonResource
             'is_active' => $this->is_active,
             'is_ghost' => $this->is_ghost,
             'metadata' => $this->metadata,
-            'created_at' => $this->created_at,
-            'updated_at' => $this->updated_at,
             'user' => new UserResource($this->whenLoaded('user')),
             'current_status' => new StatusResource($this->whenLoaded('currentStatus')),
         ];

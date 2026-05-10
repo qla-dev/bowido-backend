@@ -36,7 +36,7 @@ class InvoiceItemService extends BaseCrudService
 
                 if ($pallet->user_id !== $invoice->user_id) {
                     throw ValidationException::withMessages([
-                        'pallet_id' => ['Invoice items must reference pallets owned by the invoiced user.'],
+                        'pallet_id' => [__('Invoice items must reference pallets owned by the invoiced user.')],
                     ]);
                 }
             }
@@ -71,7 +71,7 @@ class InvoiceItemService extends BaseCrudService
 
                 if ($pallet->user_id !== $invoice->user_id) {
                     throw ValidationException::withMessages([
-                        'pallet_id' => ['Invoice items must reference pallets owned by the invoiced user.'],
+                        'pallet_id' => [__('Invoice items must reference pallets owned by the invoiced user.')],
                     ]);
                 }
             }

@@ -26,7 +26,7 @@ class PalletController extends ApiController
         return $this->successCollection(
             $this->palletService->paginate(ListQueryData::fromRequest($request), $request->user()),
             PalletResource::class,
-            'Pallets retrieved successfully.',
+            __('Pallets retrieved successfully.'),
         );
     }
 
@@ -36,7 +36,7 @@ class PalletController extends ApiController
 
         $pallet = $this->palletService->create(PalletData::fromArray($request->validated()), $request->user());
 
-        return $this->successItem($pallet, PalletResource::class, 'Pallet created successfully.', 201);
+        return $this->successItem($pallet, PalletResource::class, __('Pallet created successfully.'), 201);
     }
 
     public function show(Pallet $pallet): JsonResponse
@@ -46,7 +46,7 @@ class PalletController extends ApiController
         return $this->successItem(
             $this->palletService->find($pallet->id, request()->user()),
             PalletResource::class,
-            'Pallet retrieved successfully.',
+            __('Pallet retrieved successfully.'),
         );
     }
 
@@ -59,7 +59,7 @@ class PalletController extends ApiController
             ...$request->validated(),
         ]), $request->user());
 
-        return $this->successItem($updatedPallet, PalletResource::class, 'Pallet updated successfully.');
+        return $this->successItem($updatedPallet, PalletResource::class, __('Pallet updated successfully.'));
     }
 
     public function destroy(Pallet $pallet): JsonResponse
@@ -68,6 +68,6 @@ class PalletController extends ApiController
 
         $this->palletService->delete($pallet->id, request()->user());
 
-        return $this->success(null, 'Pallet deleted successfully.');
+        return $this->success(null, __('Pallet deleted successfully.'));
     }
 }

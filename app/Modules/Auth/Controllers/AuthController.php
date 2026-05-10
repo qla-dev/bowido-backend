@@ -8,6 +8,7 @@ use App\Modules\Auth\Requests\LoginRequest;
 use App\Modules\Auth\Requests\RegisterRequest;
 use App\Modules\Auth\Services\AuthService;
 use App\Modules\Shared\Http\Controllers\ApiController;
+use App\Modules\Users\Models\User;
 use App\Modules\Users\Resources\UserResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,35 +21,37 @@ class AuthController extends ApiController
 
     public function login(LoginRequest $request): JsonResponse
     {
-        $result = $this->authService->login(LoginData::fromArray($request->validated()));
+        $result = $this->authService->login(LoginData::fromArray($request->validated()), $request);
 
         return $this->success([
             'token' => $result['token'],
-            'token_type' => 'Bearer',
+            'token_type' => $result['token_type'],
             'expires_at' => $result['expires_at'],
+            'session_expires_at' => $result['session_expires_at'],
             'user' => (new UserResource($result['user']))->resolve(),
-        ], 'Login successful.');
+        ], __('Login successful.'));
     }
 
     public function register(RegisterRequest $request): JsonResponse
     {
-        $result = $this->authService->register(RegisterData::fromArray($request->validated()));
+        $this->authorize('create', User::class);
 
-        return $this->success([
-            'token' => $result['token'],
-            'token_type' => 'Bearer',
-            'expires_at' => $result['expires_at'],
-            'user' => (new UserResource($result['user']))->resolve(),
-        ], 'Registration successful.', status: 201);
+        $user = $this->authService->register(RegisterData::fromArray($request->validated()));
+
+        return $this->success(
+            (new UserResource($user))->resolve(),
+            __('Registration successful.'),
+            status: 201,
+        );
     }
 
     public function me(Request $request): JsonResponse
     {
-        $request->user()->loadMissing(['role', 'customerDetail']);
+        $request->user()->loadMissing(['role.rolePermissions.module', 'customerDetail']);
 
         return $this->success(
             (new UserResource($request->user()))->resolve(),
-            'Authenticated user retrieved successfully.',
+            __('Authenticated user retrieved successfully.'),
         );
     }
 
@@ -56,6 +59,6 @@ class AuthController extends ApiController
     {
         $this->authService->logout($request);
 
-        return $this->success(null, 'Logout successful.');
+        return $this->success(null, __('Logout successful.'));
     }
 }

@@ -26,8 +26,6 @@ class InvoiceItemResource extends JsonResource
             'price_per_day' => $this->price_per_day,
             'amount' => $this->amount,
             'metadata' => $this->metadata,
-            'created_at' => $this->created_at,
-            'updated_at' => $this->updated_at,
             'pallet' => new PalletResource($this->whenLoaded('pallet')),
         ];
     }

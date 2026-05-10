@@ -26,7 +26,7 @@ class RolePermissionController extends ApiController
         return $this->successCollection(
             $this->rolePermissionService->paginate(ListQueryData::fromRequest($request), $request->user()),
             RolePermissionResource::class,
-            'Role permissions retrieved successfully.',
+            __('Role permissions retrieved successfully.'),
         );
     }
 
@@ -36,7 +36,7 @@ class RolePermissionController extends ApiController
 
         $rolePermission = $this->rolePermissionService->create(RolePermissionData::fromArray($request->validated()));
 
-        return $this->successItem($rolePermission, RolePermissionResource::class, 'Role permission created successfully.', 201);
+        return $this->successItem($rolePermission, RolePermissionResource::class, __('Role permission created successfully.'), 201);
     }
 
     public function show(RolePermission $rolePermission): JsonResponse
@@ -46,7 +46,7 @@ class RolePermissionController extends ApiController
         return $this->successItem(
             $this->rolePermissionService->find($rolePermission->id, request()->user()),
             RolePermissionResource::class,
-            'Role permission retrieved successfully.',
+            __('Role permission retrieved successfully.'),
         );
     }
 
@@ -59,7 +59,7 @@ class RolePermissionController extends ApiController
             ...$request->validated(),
         ]));
 
-        return $this->successItem($updatedRolePermission, RolePermissionResource::class, 'Role permission updated successfully.');
+        return $this->successItem($updatedRolePermission, RolePermissionResource::class, __('Role permission updated successfully.'));
     }
 
     public function destroy(RolePermission $rolePermission): JsonResponse
@@ -68,6 +68,6 @@ class RolePermissionController extends ApiController
 
         $this->rolePermissionService->delete($rolePermission->id, request()->user());
 
-        return $this->success(null, 'Role permission deleted successfully.');
+        return $this->success(null, __('Role permission deleted successfully.'));
     }
 }

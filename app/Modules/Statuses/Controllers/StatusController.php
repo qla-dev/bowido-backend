@@ -26,7 +26,7 @@ class StatusController extends ApiController
         return $this->successCollection(
             $this->statusService->paginate(ListQueryData::fromRequest($request), $request->user()),
             StatusResource::class,
-            'Statuses retrieved successfully.',
+            __('Statuses retrieved successfully.'),
         );
     }
 
@@ -36,7 +36,7 @@ class StatusController extends ApiController
 
         $status = $this->statusService->create(StatusData::fromArray($request->validated()));
 
-        return $this->successItem($status, StatusResource::class, 'Status created successfully.', 201);
+        return $this->successItem($status, StatusResource::class, __('Status created successfully.'), 201);
     }
 
     public function show(Status $status): JsonResponse
@@ -46,7 +46,7 @@ class StatusController extends ApiController
         return $this->successItem(
             $this->statusService->find($status->id, request()->user()),
             StatusResource::class,
-            'Status retrieved successfully.',
+            __('Status retrieved successfully.'),
         );
     }
 
@@ -59,7 +59,7 @@ class StatusController extends ApiController
             ...$request->validated(),
         ]));
 
-        return $this->successItem($updatedStatus, StatusResource::class, 'Status updated successfully.');
+        return $this->successItem($updatedStatus, StatusResource::class, __('Status updated successfully.'));
     }
 
     public function destroy(Status $status): JsonResponse
@@ -68,6 +68,6 @@ class StatusController extends ApiController
 
         $this->statusService->delete($status->id, request()->user());
 
-        return $this->success(null, 'Status deleted successfully.');
+        return $this->success(null, __('Status deleted successfully.'));
     }
 }

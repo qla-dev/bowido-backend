@@ -38,7 +38,7 @@ class InvoiceGenerationService
 
         if (! $customerDetail || ! $customerDetail->is_active) {
             throw ValidationException::withMessages([
-                'user_id' => ['The selected customer must have active customer details.'],
+                'user_id' => [__('The selected customer must have active customer details.')],
             ]);
         }
 
@@ -125,7 +125,7 @@ class InvoiceGenerationService
 
                 return [
                     'pallet_id' => $pallet->id,
-                    'description' => sprintf('Storage billing for pallet %s', $pallet->qr_code),
+                    'description' => __('Storage billing for pallet :qr_code', ['qr_code' => $pallet->qr_code]),
                     'period_start' => Carbon::parse($periodStart)->toDateString(),
                     'period_end' => Carbon::parse($periodEnd)->toDateString(),
                     'billed_days' => $billedDays,

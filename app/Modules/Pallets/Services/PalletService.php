@@ -75,7 +75,7 @@ class PalletService extends BaseCrudService
 
         if ($this->palletRepository->hasLinkedRecords($pallet)) {
             throw ValidationException::withMessages([
-                'pallet' => ['Pallets with linked history, reports, ghost pairings, or invoice items cannot be deleted.'],
+                'pallet' => [__('Pallets with linked history, reports, ghost pairings, or invoice items cannot be deleted.')],
             ]);
         }
 
@@ -90,13 +90,13 @@ class PalletService extends BaseCrudService
 
         if (! $user->is_active) {
             throw ValidationException::withMessages([
-                'user_id' => ['The selected user is not active.'],
+                'user_id' => [__('The selected user is not active.')],
             ]);
         }
 
         if (! $status->is_active) {
             throw ValidationException::withMessages([
-                'current_status_id' => ['The selected status is not active.'],
+                'current_status_id' => [__('The selected status is not active.')],
             ]);
         }
     }

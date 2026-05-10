@@ -3,12 +3,13 @@
 namespace Database\Seeders;
 
 use App\Modules\Modules\Models\Module;
-use App\Modules\Roles\Models\Role;
 use App\Modules\RolePermissions\Models\RolePermission;
+use App\Modules\Roles\Models\Role;
 use App\Modules\Shared\Enums\ModuleKey;
 use App\Modules\Statuses\Models\Status;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Str;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class ReferenceDataSeeder extends Seeder
 {
@@ -37,18 +38,11 @@ class ReferenceDataSeeder extends Seeder
             ];
         });
 
-        $modules = collect(ModuleKey::cases())
-            ->mapWithKeys(function (ModuleKey $moduleKey): array {
-                $module = Module::query()->firstOrCreate(
-                    ['slug' => $moduleKey->value],
-                    [
-                        'name' => Str::headline(str_replace('_', ' ', $moduleKey->value)),
-                        'description' => Str::headline(str_replace('_', ' ', $moduleKey->value)).' module',
-                        'is_active' => true,
-                    ],
-                );
+        $modules = collect($this->moduleDefinitions())
+            ->mapWithKeys(function (array $definition): array {
+                $module = $this->upsertModule($definition);
 
-                return [$moduleKey->value => $module];
+                return [$definition['slug'] => $module];
             });
 
         foreach ($modules as $module) {
@@ -63,6 +57,11 @@ class ReferenceDataSeeder extends Seeder
                 ],
             );
         }
+
+        Module::query()
+            ->whereIn('slug', ['modules', 'role_permissions', 'customer_details', 'service_reports'])
+            ->whereNotIn('id', $modules->pluck('id')->all())
+            ->update(['is_active' => false]);
 
         collect([
             [
@@ -119,5 +118,156 @@ class ReferenceDataSeeder extends Seeder
                 $status,
             );
         });
+    }
+
+    /**
+     * @return array<int, array{slug: string, name: string, description: string, legacy_slugs: array<int, string>}>
+     */
+    private function moduleDefinitions(): array
+    {
+        return [
+            [
+                'slug' => ModuleKey::Pallets->value,
+                'name' => 'Pallets',
+                'description' => 'Pallet tracking and lifecycle management.',
+                'legacy_slugs' => [],
+            ],
+            [
+                'slug' => ModuleKey::Customers->value,
+                'name' => 'Customers',
+                'description' => 'Customer management based on customer details records.',
+                'legacy_slugs' => ['customer_details'],
+            ],
+            [
+                'slug' => ModuleKey::Roles->value,
+                'name' => 'Roles',
+                'description' => 'Role and access management.',
+                'legacy_slugs' => [],
+            ],
+            [
+                'slug' => ModuleKey::Invoices->value,
+                'name' => 'Invoices',
+                'description' => 'Invoice management.',
+                'legacy_slugs' => [],
+            ],
+            [
+                'slug' => ModuleKey::InvoiceItems->value,
+                'name' => 'Invoice Items',
+                'description' => 'Invoice line item management.',
+                'legacy_slugs' => [],
+            ],
+            [
+                'slug' => ModuleKey::KnowledgeBase->value,
+                'name' => 'Knowledge Base',
+                'description' => 'Role-aware knowledge base content.',
+                'legacy_slugs' => [],
+            ],
+            [
+                'slug' => ModuleKey::Statuses->value,
+                'name' => 'Statuses',
+                'description' => 'Status changes, including QR-driven scanning flows.',
+                'legacy_slugs' => [],
+            ],
+            [
+                'slug' => ModuleKey::AuditLogs->value,
+                'name' => 'Audit Logs',
+                'description' => 'Audit trail and activity history.',
+                'legacy_slugs' => [],
+            ],
+            [
+                'slug' => ModuleKey::QrVersions->value,
+                'name' => 'QR Versions',
+                'description' => 'QR version management.',
+                'legacy_slugs' => [],
+            ],
+            [
+                'slug' => ModuleKey::Services->value,
+                'name' => 'Services',
+                'description' => 'Service and repair workflows.',
+                'legacy_slugs' => ['service_reports'],
+            ],
+            [
+                'slug' => ModuleKey::Users->value,
+                'name' => 'Users',
+                'description' => 'User administration.',
+                'legacy_slugs' => [],
+            ],
+            [
+                'slug' => ModuleKey::GhostPalletReports->value,
+                'name' => 'Ghost Pallet Reports',
+                'description' => 'Ghost pallet reporting and pairing.',
+                'legacy_slugs' => [],
+            ],
+        ];
+    }
+
+    /**
+     * @param  array{slug: string, name: string, description: string, legacy_slugs: array<int, string>}  $definition
+     */
+    private function upsertModule(array $definition): Module
+    {
+        return DB::transaction(function () use ($definition): Module {
+            $target = Module::query()->where('slug', $definition['slug'])->first();
+            $legacyModules = Module::query()
+                ->whereIn('slug', $definition['legacy_slugs'])
+                ->orderBy('id')
+                ->get();
+
+            if (! $target instanceof Module && $legacyModules->isNotEmpty()) {
+                /** @var Module $target */
+                $target = $legacyModules->shift();
+                $target->slug = $definition['slug'];
+            }
+
+            if (! $target instanceof Module) {
+                /** @var Module $target */
+                $target = new Module();
+                $target->slug = $definition['slug'];
+            }
+
+            $target->fill([
+                'name' => $definition['name'],
+                'description' => $definition['description'],
+                'is_active' => true,
+            ]);
+            $target->slug = $definition['slug'];
+            $target->save();
+
+            if ($legacyModules->isNotEmpty()) {
+                $this->migrateLegacyPermissions($legacyModules, $target);
+
+                Module::query()
+                    ->whereIn('id', $legacyModules->pluck('id')->all())
+                    ->update(['is_active' => false]);
+            }
+
+            return $target;
+        });
+    }
+
+    /**
+     * @param  Collection<int, Module>  $legacyModules
+     */
+    private function migrateLegacyPermissions(Collection $legacyModules, Module $target): void
+    {
+        foreach ($legacyModules as $legacyModule) {
+            foreach ($legacyModule->rolePermissions as $rolePermission) {
+                $existing = RolePermission::query()->firstOrNew([
+                    'role_id' => $rolePermission->role_id,
+                    'module_id' => $target->id,
+                ]);
+
+                $existing->fill([
+                    'can_list' => (bool) ($existing->can_list || $rolePermission->can_list),
+                    'can_view' => (bool) ($existing->can_view || $rolePermission->can_view),
+                    'can_create' => (bool) ($existing->can_create || $rolePermission->can_create),
+                    'can_update' => (bool) ($existing->can_update || $rolePermission->can_update),
+                    'can_delete' => (bool) ($existing->can_delete || $rolePermission->can_delete),
+                ]);
+                $existing->save();
+            }
+
+            RolePermission::query()->where('module_id', $legacyModule->id)->delete();
+        }
     }
 }

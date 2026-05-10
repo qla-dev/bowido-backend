@@ -29,8 +29,6 @@ class ServiceReportResource extends JsonResource
             'image_path' => $this->image_path,
             'resolved_at' => $this->resolved_at,
             'metadata' => $this->metadata,
-            'created_at' => $this->created_at,
-            'updated_at' => $this->updated_at,
             'pallet' => new PalletResource($this->whenLoaded('pallet')),
             'reported_by_user' => new UserResource($this->whenLoaded('reportedByUser')),
             'resolved_by_user' => new UserResource($this->whenLoaded('resolvedByUser')),

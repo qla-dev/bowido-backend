@@ -39,6 +39,6 @@ class ServiceReportPolicy extends BaseModulePolicy
 
     protected function moduleKey(): ModuleKey
     {
-        return ModuleKey::ServiceReports;
+        return ModuleKey::Services;
     }
 }

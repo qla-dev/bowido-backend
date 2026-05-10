@@ -23,10 +23,23 @@ class ModuleController extends ApiController
     {
         $this->authorize('viewAny', Module::class);
 
+        $queryData = ListQueryData::fromRequest($request);
+
+        if (! array_key_exists('is_active', $queryData->filters)) {
+            $queryData = new ListQueryData(
+                limit: $queryData->limit,
+                offset: $queryData->offset,
+                filters: [
+                    ...$queryData->filters,
+                    'is_active' => true,
+                ],
+            );
+        }
+
         return $this->successCollection(
-            $this->moduleService->paginate(ListQueryData::fromRequest($request), $request->user()),
+            $this->moduleService->paginate($queryData, $request->user()),
             ModuleResource::class,
-            'Modules retrieved successfully.',
+            __('Modules retrieved successfully.'),
         );
     }
 
@@ -36,7 +49,7 @@ class ModuleController extends ApiController
 
         $module = $this->moduleService->create(ModuleData::fromArray($request->validated()));
 
-        return $this->successItem($module, ModuleResource::class, 'Module created successfully.', 201);
+        return $this->successItem($module, ModuleResource::class, __('Module created successfully.'), 201);
     }
 
     public function show(Module $module): JsonResponse
@@ -46,7 +59,7 @@ class ModuleController extends ApiController
         return $this->successItem(
             $this->moduleService->find($module->id, request()->user()),
             ModuleResource::class,
-            'Module retrieved successfully.',
+            __('Module retrieved successfully.'),
         );
     }
 
@@ -59,7 +72,7 @@ class ModuleController extends ApiController
             ...$request->validated(),
         ]));
 
-        return $this->successItem($updatedModule, ModuleResource::class, 'Module updated successfully.');
+        return $this->successItem($updatedModule, ModuleResource::class, __('Module updated successfully.'));
     }
 
     public function destroy(Module $module): JsonResponse
@@ -68,6 +81,6 @@ class ModuleController extends ApiController
 
         $this->moduleService->delete($module->id, request()->user());
 
-        return $this->success(null, 'Module deleted successfully.');
+        return $this->success(null, __('Module deleted successfully.'));
     }
 }

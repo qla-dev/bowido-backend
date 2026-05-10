@@ -26,7 +26,7 @@ class CustomerDetailController extends ApiController
         return $this->successCollection(
             $this->customerDetailService->paginate(ListQueryData::fromRequest($request), $request->user()),
             CustomerDetailResource::class,
-            'Customer details retrieved successfully.',
+            __('Customer details retrieved successfully.'),
         );
     }
 
@@ -36,7 +36,7 @@ class CustomerDetailController extends ApiController
 
         $customerDetail = $this->customerDetailService->create(CustomerDetailData::fromArray($request->validated()));
 
-        return $this->successItem($customerDetail, CustomerDetailResource::class, 'Customer detail created successfully.', 201);
+        return $this->successItem($customerDetail, CustomerDetailResource::class, __('Customer detail created successfully.'), 201);
     }
 
     public function show(CustomerDetail $customerDetail): JsonResponse
@@ -46,7 +46,7 @@ class CustomerDetailController extends ApiController
         return $this->successItem(
             $this->customerDetailService->find($customerDetail->id, request()->user()),
             CustomerDetailResource::class,
-            'Customer detail retrieved successfully.',
+            __('Customer detail retrieved successfully.'),
         );
     }
 
@@ -59,7 +59,7 @@ class CustomerDetailController extends ApiController
             ...$request->validated(),
         ]));
 
-        return $this->successItem($updatedCustomerDetail, CustomerDetailResource::class, 'Customer detail updated successfully.');
+        return $this->successItem($updatedCustomerDetail, CustomerDetailResource::class, __('Customer detail updated successfully.'));
     }
 
     public function destroy(CustomerDetail $customerDetail): JsonResponse
@@ -68,6 +68,6 @@ class CustomerDetailController extends ApiController
 
         $this->customerDetailService->delete($customerDetail->id, request()->user());
 
-        return $this->success(null, 'Customer detail deleted successfully.');
+        return $this->success(null, __('Customer detail deleted successfully.'));
     }
 }

@@ -5,6 +5,7 @@ namespace Tests\Unit;
 use App\Modules\CustomerDetails\Models\CustomerDetail;
 use App\Modules\InvoiceItems\Models\InvoiceItem;
 use App\Modules\Invoices\Models\Invoice;
+use App\Modules\Modules\Models\Module;
 use App\Modules\Pallets\Models\Pallet;
 use App\Modules\Statuses\Models\Status;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -58,5 +59,37 @@ class SchemaAndRelationshipTest extends TestCase
         $this->assertSame($user->id, $invoice->user->id);
         $this->assertSame($invoice->id, $invoiceItem->invoice->id);
         $this->assertSame($pallet->id, $invoiceItem->pallet->id);
+    }
+
+    public function test_expected_modules_are_seeded(): void
+    {
+        $expectedSlugs = [
+            'pallets',
+            'customers',
+            'roles',
+            'invoices',
+            'invoice_items',
+            'knowledge_base',
+            'statuses',
+            'audit_logs',
+            'qr_versions',
+            'services',
+            'users',
+            'ghost_pallet_reports',
+        ];
+
+        foreach ($expectedSlugs as $slug) {
+            $this->assertDatabaseHas('modules', [
+                'slug' => $slug,
+                'is_active' => true,
+            ]);
+        }
+
+        foreach (['customer_details', 'service_reports'] as $legacySlug) {
+            $this->assertDatabaseMissing('modules', [
+                'slug' => $legacySlug,
+                'is_active' => true,
+            ]);
+        }
     }
 }
