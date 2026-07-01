@@ -25,13 +25,29 @@ class ServiceReportResource extends JsonResource
             'severity' => $this->severity,
             'issue_type' => $this->issue_type,
             'description' => $this->description,
+            'problem_description' => $this->description,
             'resolution_note' => $this->resolution_note,
-            'image_path' => $this->image_path,
+            'image_path' => $this->imageUrl(),
             'resolved_at' => $this->resolved_at,
             'metadata' => $this->metadata,
+            'created_at' => $this->created_at,
+            'updated_at' => $this->updated_at,
             'pallet' => new PalletResource($this->whenLoaded('pallet')),
             'reported_by_user' => new UserResource($this->whenLoaded('reportedByUser')),
             'resolved_by_user' => new UserResource($this->whenLoaded('resolvedByUser')),
         ];
+    }
+
+    private function imageUrl(): ?string
+    {
+        if (! is_string($this->image_path) || $this->image_path === '') {
+            return null;
+        }
+
+        if (str_starts_with($this->image_path, 'http://') || str_starts_with($this->image_path, 'https://')) {
+            return $this->image_path;
+        }
+
+        return asset('storage/'.$this->image_path);
     }
 }

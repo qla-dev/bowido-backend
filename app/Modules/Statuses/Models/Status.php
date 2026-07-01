@@ -19,6 +19,8 @@ class Status extends Model
         'slug',
         'description',
         'is_billable',
+        'grace_period_days',
+        'price_per_day',
         'is_active',
         'sort_order',
     ];
@@ -27,6 +29,8 @@ class Status extends Model
     {
         return [
             'is_billable' => 'boolean',
+            'grace_period_days' => 'integer',
+            'price_per_day' => 'decimal:2',
             'is_active' => 'boolean',
             'sort_order' => 'integer',
         ];

@@ -32,6 +32,44 @@ class AuthController extends ApiController
         ], __('Login successful.'));
     }
 
+    public function loginOptions(): JsonResponse
+    {
+        $roleOrder = [
+            'admin' => 10,
+            'driver' => 20,
+            'warehouse_operator' => 30,
+            'customer' => 40,
+            'technician' => 50,
+        ];
+        $seededEmails = [
+            'admin@example.com',
+            'driver@example.com',
+            'warehouse@example.com',
+            'technician@example.com',
+            'eva.vandijk@example.com',
+            'amar.kovac@example.com',
+            'lejla.hadzic@example.com',
+        ];
+
+        $users = User::query()
+            ->with(['role', 'customerDetail'])
+            ->where('is_active', true)
+            ->whereIn('email', $seededEmails)
+            ->whereHas('role', fn ($query) => $query->whereIn('name', array_keys($roleOrder)))
+            ->get()
+            ->sort(function (User $left, User $right) use ($roleOrder): int {
+                $roleComparison = ($roleOrder[$left->role?->name] ?? 999) <=> ($roleOrder[$right->role?->name] ?? 999);
+
+                return $roleComparison !== 0 ? $roleComparison : $left->id <=> $right->id;
+            })
+            ->values();
+
+        return $this->success(
+            UserResource::collection($users)->resolve(),
+            __('Login options retrieved successfully.'),
+        );
+    }
+
     public function register(RegisterRequest $request): JsonResponse
     {
         $this->authorize('create', User::class);

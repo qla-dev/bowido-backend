@@ -11,6 +11,7 @@ class StorePalletRequest extends ApiFormRequest
         return [
             'user_id' => ['required', 'integer', 'exists:users,id'],
             'current_status_id' => ['required', 'integer', 'exists:statuses,id'],
+            'type' => ['sometimes', 'string', 'max:255'],
             'asset_type' => ['sometimes', 'string', 'max:255'],
             'qr_code' => ['required', 'string', 'max:255', 'unique:pallets,qr_code'],
             'reference_code' => ['nullable', 'string', 'max:255'],

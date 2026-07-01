@@ -21,6 +21,7 @@ class Pallet extends Model
     protected $fillable = [
         'user_id',
         'current_status_id',
+        'type',
         'asset_type',
         'qr_code',
         'reference_code',

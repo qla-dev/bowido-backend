@@ -16,6 +16,7 @@ class UpdateServiceReportRequest extends ApiFormRequest
             'description' => ['sometimes', 'string'],
             'resolution_note' => ['required_if:status,resolved', 'nullable', 'string'],
             'image' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
+            'image_path' => ['nullable', 'string'],
             'metadata' => ['nullable', 'array'],
         ];
     }
