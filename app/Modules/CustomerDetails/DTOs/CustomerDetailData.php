@@ -7,6 +7,8 @@ readonly class CustomerDetailData
     public function __construct(
         public int $userId,
         public string $companyName,
+        public ?string $country,
+        public ?string $kvk,
         public ?string $billingEmail,
         public ?string $billingAddress,
         public ?string $deliveryAddress,
@@ -27,6 +29,8 @@ readonly class CustomerDetailData
         return new self(
             userId: (int) $attributes['user_id'],
             companyName: trim((string) $attributes['company_name']),
+            country: isset($attributes['country']) ? trim((string) $attributes['country']) : null,
+            kvk: isset($attributes['kvk']) ? trim((string) $attributes['kvk']) : ($attributes['kvk_number'] ?? null),
             billingEmail: $attributes['billing_email'] ?? null,
             billingAddress: $attributes['billing_address'] ?? null,
             deliveryAddress: $attributes['delivery_address'] ?? null,
@@ -47,6 +51,8 @@ readonly class CustomerDetailData
         return [
             'user_id' => $this->userId,
             'company_name' => $this->companyName,
+            'country' => $this->country,
+            'kvk' => $this->kvk,
             'billing_email' => $this->billingEmail,
             'billing_address' => $this->billingAddress,
             'delivery_address' => $this->deliveryAddress,

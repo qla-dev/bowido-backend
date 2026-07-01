@@ -14,6 +14,7 @@ class UpdatePalletRequest extends ApiFormRequest
         return [
             'user_id' => ['sometimes', 'integer', 'exists:users,id'],
             'current_status_id' => ['sometimes', 'integer', 'exists:statuses,id'],
+            'type' => ['sometimes', 'string', 'max:255'],
             'asset_type' => ['sometimes', 'string', 'max:255'],
             'qr_code' => ['sometimes', 'string', 'max:255', Rule::unique('pallets', 'qr_code')->ignore($palletId)],
             'reference_code' => ['nullable', 'string', 'max:255'],

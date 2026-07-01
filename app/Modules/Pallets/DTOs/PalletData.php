@@ -12,6 +12,7 @@ readonly class PalletData
     public function __construct(
         public int $userId,
         public int $currentStatusId,
+        public string $type,
         public string $assetType,
         public string $qrCode,
         public ?string $referenceCode,
@@ -31,6 +32,7 @@ readonly class PalletData
         return new self(
             userId: (int) $attributes['user_id'],
             currentStatusId: (int) $attributes['current_status_id'],
+            type: trim((string) ($attributes['type'] ?? $attributes['asset_type'] ?? 'pallet')),
             assetType: trim((string) ($attributes['asset_type'] ?? 'pallet')),
             qrCode: Normalizer::qrCode((string) $attributes['qr_code']),
             referenceCode: $attributes['reference_code'] ?? null,
@@ -50,6 +52,7 @@ readonly class PalletData
         return [
             'user_id' => $this->userId,
             'current_status_id' => $this->currentStatusId,
+            'type' => $this->type,
             'asset_type' => $this->assetType,
             'qr_code' => $this->qrCode,
             'reference_code' => $this->referenceCode,

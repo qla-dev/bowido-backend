@@ -38,7 +38,7 @@ class ServiceReportService extends BaseCrudService
                 'severity' => $data->severity,
                 'issue_type' => $data->issueType,
                 'description' => $data->description,
-                'image_path' => $data->image?->store('service-reports', 'public'),
+                'image_path' => $data->image?->store('service-reports', 'public') ?? $data->imagePath,
                 'metadata' => $data->metadata,
             ];
 
@@ -73,6 +73,8 @@ class ServiceReportService extends BaseCrudService
 
             if ($data->image !== null) {
                 $attributes['image_path'] = $data->image->store('service-reports', 'public');
+            } elseif ($data->imagePath !== null) {
+                $attributes['image_path'] = $data->imagePath;
             }
 
             if ($data->status === ServiceReportStatus::Resolved->value && $lockedServiceReport->status !== ServiceReportStatus::Resolved->value) {

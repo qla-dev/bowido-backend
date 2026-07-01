@@ -11,10 +11,6 @@ class CustomerDetailPolicy extends BaseModulePolicy
 {
     public function viewAny(User $user): bool
     {
-        if ($user->isCustomer()) {
-            return false;
-        }
-
         return parent::viewAny($user);
     }
 

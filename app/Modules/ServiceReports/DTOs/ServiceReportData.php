@@ -17,6 +17,7 @@ readonly class ServiceReportData
         public string $description,
         public ?string $resolutionNote,
         public ?UploadedFile $image,
+        public ?string $imagePath,
         public ?array $metadata,
     ) {
     }
@@ -34,6 +35,7 @@ readonly class ServiceReportData
             description: (string) ($attributes['description'] ?? ''),
             resolutionNote: $attributes['resolution_note'] ?? null,
             image: $attributes['image'] ?? null,
+            imagePath: $attributes['image_path'] ?? null,
             metadata: isset($attributes['metadata']) && is_array($attributes['metadata']) ? $attributes['metadata'] : null,
         );
     }

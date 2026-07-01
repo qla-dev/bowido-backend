@@ -24,6 +24,10 @@ class RoleResource extends JsonResource
                 'rolePermissions',
                 fn (): array => $this->rolePermissions->pluck('module_id')->sort()->values()->all(),
             ),
+            'permissions' => $this->whenLoaded(
+                'rolePermissions',
+                fn (): array => $this->rolePermissions->pluck('module_id')->sort()->values()->all(),
+            ),
             'role_permissions' => RolePermissionResource::collection($this->whenLoaded('rolePermissions')),
         ];
     }

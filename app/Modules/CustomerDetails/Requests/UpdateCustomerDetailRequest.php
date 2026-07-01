@@ -14,6 +14,8 @@ class UpdateCustomerDetailRequest extends ApiFormRequest
         return [
             'user_id' => ['sometimes', 'integer', 'exists:users,id', Rule::unique('customer_details', 'user_id')->ignore($customerDetailId)],
             'company_name' => ['sometimes', 'string', 'max:255'],
+            'country' => ['nullable', 'string', 'max:255'],
+            'kvk' => ['nullable', 'string', 'max:255', Rule::unique('customer_details', 'kvk')->ignore($customerDetailId)],
             'billing_email' => ['nullable', 'email', 'max:255'],
             'billing_address' => ['nullable', 'string'],
             'delivery_address' => ['nullable', 'string'],

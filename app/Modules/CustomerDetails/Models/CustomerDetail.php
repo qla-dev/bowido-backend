@@ -16,6 +16,8 @@ class CustomerDetail extends Model
     protected $fillable = [
         'user_id',
         'company_name',
+        'country',
+        'kvk',
         'billing_email',
         'billing_address',
         'delivery_address',

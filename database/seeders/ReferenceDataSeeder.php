@@ -45,18 +45,7 @@ class ReferenceDataSeeder extends Seeder
                 return [$definition['slug'] => $module];
             });
 
-        foreach ($modules as $module) {
-            RolePermission::query()->updateOrCreate(
-                ['role_id' => $roles['admin']->id, 'module_id' => $module->id],
-                [
-                    'can_list' => true,
-                    'can_view' => true,
-                    'can_create' => true,
-                    'can_update' => true,
-                    'can_delete' => true,
-                ],
-            );
-        }
+        $this->syncRolePermissions($roles, $modules);
 
         Module::query()
             ->whereIn('slug', ['modules', 'role_permissions', 'customer_details', 'service_reports'])
@@ -77,6 +66,8 @@ class ReferenceDataSeeder extends Seeder
                 'slug' => 'transport',
                 'description' => 'Pallet is in transport between Bosnia and Herzegovina and the Netherlands. An internal counter can be used to raise a warning after 3 days.',
                 'is_billable' => false,
+                'grace_period_days' => 3,
+                'price_per_day' => 0,
                 'is_active' => true,
                 'sort_order' => 20,
             ],
@@ -85,6 +76,8 @@ class ReferenceDataSeeder extends Seeder
                 'slug' => 'at_customer',
                 'description' => 'Pallet is at the customer location and active billing starts once a customer is assigned.',
                 'is_billable' => true,
+                'grace_period_days' => 14,
+                'price_per_day' => 2.50,
                 'is_active' => true,
                 'sort_order' => 30,
             ],
@@ -118,6 +111,144 @@ class ReferenceDataSeeder extends Seeder
                 $status,
             );
         });
+    }
+
+    /**
+     * @param  Collection<string, Role>  $roles
+     * @param  Collection<string, Module>  $modules
+     */
+    private function syncRolePermissions(Collection $roles, Collection $modules): void
+    {
+        foreach ($roles as $roleName => $role) {
+            $permissions = $this->permissionsForRole($roleName, $modules);
+            $moduleIds = array_column($permissions, 'module_id');
+
+            RolePermission::query()
+                ->where('role_id', $role->id)
+                ->whereNotIn('module_id', $moduleIds)
+                ->delete();
+
+            foreach ($permissions as $permission) {
+                RolePermission::query()->updateOrCreate(
+                    ['role_id' => $role->id, 'module_id' => $permission['module_id']],
+                    [
+                        'can_list' => $permission['can_list'],
+                        'can_view' => $permission['can_view'],
+                        'can_create' => $permission['can_create'],
+                        'can_update' => $permission['can_update'],
+                        'can_delete' => $permission['can_delete'],
+                    ],
+                );
+            }
+        }
+    }
+
+    /**
+     * @param  Collection<string, Module>  $modules
+     * @return array<int, array{module_id: int, can_list: bool, can_view: bool, can_create: bool, can_update: bool, can_delete: bool}>
+     */
+    private function permissionsForRole(string $roleName, Collection $modules): array
+    {
+        if ($roleName === 'admin') {
+            return $modules
+                ->map(fn (Module $module): array => $this->permissionRow($module, true, true, true, true, true))
+                ->values()
+                ->all();
+        }
+
+        $matrix = [
+            'warehouse_operator' => [
+                ModuleKey::Pallets->value => ['can_list', 'can_view', 'can_create', 'can_update'],
+                ModuleKey::Customers->value => ['can_list', 'can_view', 'can_create', 'can_update'],
+                ModuleKey::Statuses->value => ['can_list', 'can_view', 'can_update'],
+                ModuleKey::AuditLogs->value => ['can_list', 'can_view'],
+                ModuleKey::Services->value => ['can_list', 'can_view', 'can_create', 'can_update'],
+                ModuleKey::GhostPalletReports->value => ['can_list', 'can_view', 'can_create', 'can_update'],
+                ModuleKey::Invoices->value => ['can_list', 'can_view'],
+                ModuleKey::InvoiceItems->value => ['can_list', 'can_view'],
+            ],
+            'operator' => [
+                ModuleKey::Pallets->value => ['can_list', 'can_view', 'can_create', 'can_update'],
+                ModuleKey::Customers->value => ['can_list', 'can_view'],
+                ModuleKey::Statuses->value => ['can_list', 'can_view'],
+                ModuleKey::AuditLogs->value => ['can_list', 'can_view'],
+                ModuleKey::Services->value => ['can_list', 'can_view', 'can_create', 'can_update'],
+                ModuleKey::GhostPalletReports->value => ['can_list', 'can_view', 'can_create', 'can_update'],
+            ],
+            'driver' => [
+                ModuleKey::Pallets->value => ['can_list', 'can_view', 'can_update'],
+                ModuleKey::Customers->value => ['can_list', 'can_view'],
+                ModuleKey::Statuses->value => ['can_list', 'can_view'],
+                ModuleKey::AuditLogs->value => ['can_list', 'can_view'],
+                ModuleKey::GhostPalletReports->value => ['can_list', 'can_view', 'can_create', 'can_update'],
+                ModuleKey::Services->value => ['can_list', 'can_view'],
+            ],
+            'technician' => [
+                ModuleKey::Pallets->value => ['can_list', 'can_view', 'can_update'],
+                ModuleKey::Customers->value => ['can_list', 'can_view'],
+                ModuleKey::Statuses->value => ['can_list', 'can_view'],
+                ModuleKey::AuditLogs->value => ['can_list', 'can_view'],
+                ModuleKey::Services->value => ['can_list', 'can_view', 'can_create', 'can_update'],
+                ModuleKey::GhostPalletReports->value => ['can_list', 'can_view'],
+            ],
+            'customer' => [
+                ModuleKey::Pallets->value => ['can_list', 'can_view'],
+                ModuleKey::Customers->value => ['can_list', 'can_view', 'can_update'],
+                ModuleKey::Statuses->value => ['can_list', 'can_view'],
+                ModuleKey::AuditLogs->value => ['can_list', 'can_view'],
+                ModuleKey::Invoices->value => ['can_list', 'can_view'],
+                ModuleKey::InvoiceItems->value => ['can_list', 'can_view'],
+                ModuleKey::Services->value => ['can_list', 'can_view', 'can_create'],
+                ModuleKey::GhostPalletReports->value => ['can_list', 'can_view', 'can_create'],
+            ],
+            'user' => [
+                ModuleKey::Pallets->value => ['can_list', 'can_view'],
+                ModuleKey::Statuses->value => ['can_list', 'can_view'],
+                ModuleKey::AuditLogs->value => ['can_list', 'can_view'],
+            ],
+        ];
+
+        return collect($matrix[$roleName] ?? [])
+            ->map(function (array $abilities, string $moduleSlug) use ($modules): ?array {
+                $module = $modules->get($moduleSlug);
+
+                if (! $module instanceof Module) {
+                    return null;
+                }
+
+                return $this->permissionRow(
+                    module: $module,
+                    canList: in_array('can_list', $abilities, true),
+                    canView: in_array('can_view', $abilities, true),
+                    canCreate: in_array('can_create', $abilities, true),
+                    canUpdate: in_array('can_update', $abilities, true),
+                    canDelete: in_array('can_delete', $abilities, true),
+                );
+            })
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array{module_id: int, can_list: bool, can_view: bool, can_create: bool, can_update: bool, can_delete: bool}
+     */
+    private function permissionRow(
+        Module $module,
+        bool $canList,
+        bool $canView,
+        bool $canCreate,
+        bool $canUpdate,
+        bool $canDelete,
+    ): array {
+        return [
+            'module_id' => $module->id,
+            'can_list' => $canList,
+            'can_view' => $canView,
+            'can_create' => $canCreate,
+            'can_update' => $canUpdate,
+            'can_delete' => $canDelete,
+        ];
     }
 
     /**
