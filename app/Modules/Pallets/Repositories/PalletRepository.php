@@ -27,7 +27,7 @@ class PalletRepository extends BaseRepository
 
     protected function relations(): array
     {
-        return ['user.role', 'user.customerDetail', 'currentStatus'];
+        return ['user.customerDetail', 'currentStatus'];
     }
 
     protected function scopeForActor(Builder $query, ?User $actor): Builder

@@ -14,6 +14,7 @@ class StorePalletRequest extends ApiFormRequest
             'type' => ['sometimes', 'string', 'max:255'],
             'asset_type' => ['sometimes', 'string', 'max:255'],
             'qr_code' => ['required', 'string', 'max:255', 'unique:pallets,qr_code'],
+            'pallet_name' => ['sometimes', 'string', 'max:255'],
             'reference_code' => ['nullable', 'string', 'max:255'],
             'current_location' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],

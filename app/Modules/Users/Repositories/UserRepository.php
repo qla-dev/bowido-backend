@@ -22,7 +22,7 @@ class UserRepository extends BaseRepository
 
     protected function relations(): array
     {
-        return ['role.rolePermissions.module', 'customerDetail'];
+        return ['role', 'customerDetail'];
     }
 
     protected function scopeForActor(Builder $query, ?User $actor): Builder
@@ -37,7 +37,7 @@ class UserRepository extends BaseRepository
     public function findByEmailForAuth(string $email): ?User
     {
         return User::query()
-            ->with(['role.rolePermissions.module', 'customerDetail'])
+            ->with(['role', 'customerDetail'])
             ->where('email', $email)
             ->first();
     }

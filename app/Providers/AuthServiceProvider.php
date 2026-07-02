@@ -47,7 +47,7 @@ class AuthServiceProvider extends ServiceProvider
             }
 
             $token = ApiToken::query()
-                ->with(['user.role.rolePermissions.module', 'user.customerDetail'])
+                ->with(['user.role', 'user.customerDetail'])
                 ->where('token', hash('sha256', $plainTextToken))
                 ->where(function ($query): void {
                     $query->whereNull('expires_at')
