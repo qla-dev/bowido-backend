@@ -100,7 +100,7 @@ class User extends Authenticatable
 
     public function hasModulePermission(string $moduleSlug, string $ability): bool
     {
-        $this->loadMissing('role.rolePermissions.module');
+        $this->loadMissing('role');
 
         if (! $this->is_active || ! $this->role || ! $this->role->is_active) {
             return false;
@@ -109,6 +109,8 @@ class User extends Authenticatable
         if ($this->isAdmin()) {
             return true;
         }
+
+        $this->loadMissing('role.rolePermissions.module');
 
         $permission = $this->role->rolePermissions
             ->first(fn ($item) => $item->module?->slug === $moduleSlug);
