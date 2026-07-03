@@ -30,6 +30,56 @@ $write = static function (string $message): void {
     flush();
 };
 
+$shellArg = static fn (string $value): string => escapeshellarg($value);
+
+$commandExists = static function (string $command): bool {
+    $checkCommand = PHP_OS_FAMILY === 'Windows'
+        ? 'where ' . escapeshellarg($command)
+        : 'command -v ' . escapeshellarg($command) . ' >/dev/null 2>&1';
+
+    exec($checkCommand, $output, $exitCode);
+
+    return $exitCode === 0;
+};
+
+$downloadComposer = static function (string $targetFile, callable $write): bool {
+    $write("Composer was not found on PATH. Downloading local composer.phar...\n");
+
+    $composerUrl = 'https://getcomposer.org/download/latest-stable/composer.phar';
+    $composerPhar = @file_get_contents($composerUrl);
+
+    if ($composerPhar === false) {
+        $write("Could not download Composer from {$composerUrl}.\n");
+        $write("Install Composer globally on the server, or upload composer.phar to this folder:\n");
+        $write(dirname($targetFile) . "\n");
+        return false;
+    }
+
+    if (@file_put_contents($targetFile, $composerPhar) === false) {
+        $write("Downloaded Composer, but could not write it to {$targetFile}.\n");
+        return false;
+    }
+
+    $write("Saved local Composer to {$targetFile}.\n");
+    return true;
+};
+
+$phpCommand = $shellArg(PHP_BINARY ?: 'php');
+$composerPhar = $baseDir . DIRECTORY_SEPARATOR . 'composer.phar';
+$composerCommand = null;
+
+if (is_file($composerPhar)) {
+    $composerCommand = $phpCommand . ' ' . $shellArg($composerPhar);
+} elseif ($commandExists('composer')) {
+    $composerCommand = 'composer';
+} elseif ($downloadComposer($composerPhar, $write)) {
+    $composerCommand = $phpCommand . ' ' . $shellArg($composerPhar);
+}
+
+if ($composerCommand === null) {
+    exit(127);
+}
+
 $runCommand = static function (string $command, string $cwd, callable $write): int {
     $descriptorSpec = [
         0 => ['pipe', 'r'],
@@ -91,7 +141,7 @@ $runCommand = static function (string $command, string $cwd, callable $write): i
 $commands = [
     [
         'label' => 'Installing Composer dependencies',
-        'command' => 'composer install --no-interaction --prefer-dist --no-progress --optimize-autoloader',
+        'command' => $composerCommand . ' install --no-interaction --prefer-dist --no-progress --optimize-autoloader',
     ],
     [
         'label' => 'Running database migrations',
