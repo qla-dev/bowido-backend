@@ -174,6 +174,12 @@ $printDatabaseSummary = static function (string $baseDir, callable $readEnvValue
     $write("DB_PASSWORD=[hidden]\n");
 };
 
+$hasAppKey = static function (string $baseDir, callable $readEnvValue): bool {
+    $appKey = $readEnvValue('APP_KEY', $baseDir);
+
+    return is_string($appKey) && trim($appKey) !== '';
+};
+
 $phpCommand = $shellArg($findCliPhp($findExecutable, $write));
 $composerPhar = $baseDir . DIRECTORY_SEPARATOR . 'composer.phar';
 $composerCommand = null;
@@ -258,12 +264,23 @@ $commands = [
         'command' => $phpCommand . ' artisan config:clear --no-ansi',
     ],
     [
+        'label' => 'Generating application key',
+        'command' => $phpCommand . ' artisan key:generate --force --no-ansi',
+        'skip' => $hasAppKey($baseDir, $readEnvValue),
+    ],
+    [
         'label' => 'Running database migrations',
         'command' => $phpCommand . ' artisan migrate --force --no-ansi',
     ],
 ];
 
 foreach ($commands as $step) {
+    if (($step['skip'] ?? false) === true) {
+        $write("\n=== {$step['label']} ===\n");
+        $write("Skipped: APP_KEY already exists.\n");
+        continue;
+    }
+
     $write("\n=== {$step['label']} ===\n");
     $write("Command: {$step['command']}\n");
 
