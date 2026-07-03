@@ -122,6 +122,58 @@ $downloadComposer = static function (string $targetFile, callable $write): bool 
     return true;
 };
 
+$readEnvValue = static function (string $key, string $baseDir): ?string {
+    $envFile = $baseDir . DIRECTORY_SEPARATOR . '.env';
+
+    if (!is_file($envFile)) {
+        return null;
+    }
+
+    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+    if ($lines === false) {
+        return null;
+    }
+
+    foreach ($lines as $line) {
+        $line = trim($line);
+
+        if ($line === '' || str_starts_with($line, '#') || !str_contains($line, '=')) {
+            continue;
+        }
+
+        [$name, $value] = explode('=', $line, 2);
+
+        if (trim($name) !== $key) {
+            continue;
+        }
+
+        $value = trim($value);
+
+        if (
+            strlen($value) >= 2
+            && (($value[0] === '"' && substr($value, -1) === '"') || ($value[0] === "'" && substr($value, -1) === "'"))
+        ) {
+            $value = substr($value, 1, -1);
+        }
+
+        return $value;
+    }
+
+    return null;
+};
+
+$printDatabaseSummary = static function (string $baseDir, callable $readEnvValue, callable $write): void {
+    $write("\n=== Database config from .env ===\n");
+
+    foreach (['DB_CONNECTION', 'DB_HOST', 'DB_PORT', 'DB_DATABASE', 'DB_USERNAME'] as $key) {
+        $value = $readEnvValue($key, $baseDir);
+        $write($key . '=' . ($value ?? '[not set]') . "\n");
+    }
+
+    $write("DB_PASSWORD=[hidden]\n");
+};
+
 $phpCommand = $shellArg($findCliPhp($findExecutable, $write));
 $composerPhar = $baseDir . DIRECTORY_SEPARATOR . 'composer.phar';
 $composerCommand = null;
@@ -199,17 +251,25 @@ $runCommand = static function (string $command, string $cwd, callable $write): i
 $commands = [
     [
         'label' => 'Installing Composer dependencies',
-        'command' => $composerCommand . ' install --no-interaction --prefer-dist --no-progress --optimize-autoloader',
+        'command' => $composerCommand . ' install --no-interaction --prefer-dist --no-progress --optimize-autoloader --no-ansi',
+    ],
+    [
+        'label' => 'Clearing cached Laravel config',
+        'command' => $phpCommand . ' artisan config:clear --no-ansi',
     ],
     [
         'label' => 'Running database migrations',
-        'command' => $phpCommand . ' artisan migrate --force',
+        'command' => $phpCommand . ' artisan migrate --force --no-ansi',
     ],
 ];
 
 foreach ($commands as $step) {
     $write("\n=== {$step['label']} ===\n");
     $write("Command: {$step['command']}\n");
+
+    if ($step['label'] === 'Running database migrations') {
+        $printDatabaseSummary($baseDir, $readEnvValue, $write);
+    }
 
     $exitCode = $runCommand($step['command'], $baseDir, $write);
 
