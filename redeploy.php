@@ -12,6 +12,19 @@ chdir($baseDir);
 putenv('COMPOSER_ALLOW_SUPERUSER=1');
 putenv('COMPOSER_NO_INTERACTION=1');
 
+$composerHome = $baseDir . DIRECTORY_SEPARATOR . '.composer';
+$composerCache = $composerHome . DIRECTORY_SEPARATOR . 'cache';
+
+foreach ([$composerHome, $composerCache] as $directory) {
+    if (!is_dir($directory)) {
+        mkdir($directory, 0755, true);
+    }
+}
+
+putenv('HOME=' . $composerHome);
+putenv('COMPOSER_HOME=' . $composerHome);
+putenv('COMPOSER_CACHE_DIR=' . $composerCache);
+
 if (PHP_SAPI !== 'cli') {
     header('Content-Type: text/plain; charset=utf-8');
     header('Cache-Control: no-cache');
