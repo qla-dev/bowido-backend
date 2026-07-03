@@ -9,6 +9,8 @@ ini_set('zlib.output_compression', '0');
 
 $baseDir = __DIR__;
 chdir($baseDir);
+putenv('COMPOSER_ALLOW_SUPERUSER=1');
+putenv('COMPOSER_NO_INTERACTION=1');
 
 if (PHP_SAPI !== 'cli') {
     header('Content-Type: text/plain; charset=utf-8');
@@ -35,12 +37,7 @@ $runCommand = static function (string $command, string $cwd, callable $write): i
         2 => ['pipe', 'w'],
     ];
 
-    $env = array_merge(getenv() ?: [], [
-        'COMPOSER_ALLOW_SUPERUSER' => '1',
-        'COMPOSER_NO_INTERACTION' => '1',
-    ]);
-
-    $process = proc_open($command, $descriptorSpec, $pipes, $cwd, $env);
+    $process = proc_open($command, $descriptorSpec, $pipes, $cwd);
 
     if (!is_resource($process)) {
         $write("Failed to start command: {$command}\n");
