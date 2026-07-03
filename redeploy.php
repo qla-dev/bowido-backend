@@ -42,6 +42,51 @@ $commandExists = static function (string $command): bool {
     return $exitCode === 0;
 };
 
+$findExecutable = static function (array $commands): ?string {
+    foreach ($commands as $command) {
+        if (str_contains($command, DIRECTORY_SEPARATOR) && is_file($command) && is_executable($command)) {
+            return $command;
+        }
+
+        $checkCommand = PHP_OS_FAMILY === 'Windows'
+            ? 'where ' . escapeshellarg($command)
+            : 'command -v ' . escapeshellarg($command);
+
+        $output = [];
+        exec($checkCommand, $output, $exitCode);
+
+        if ($exitCode === 0 && isset($output[0]) && $output[0] !== '') {
+            return trim($output[0]);
+        }
+    }
+
+    return null;
+};
+
+$findCliPhp = static function (callable $findExecutable, callable $write): string {
+    $candidates = [
+        'php',
+        '/usr/local/bin/php',
+        '/usr/bin/php',
+        '/opt/cpanel/ea-php82/root/usr/bin/php',
+        '/opt/cpanel/ea-php83/root/usr/bin/php',
+        '/opt/cpanel/ea-php84/root/usr/bin/php',
+    ];
+
+    if (PHP_SAPI === 'cli' && PHP_BINARY) {
+        array_unshift($candidates, PHP_BINARY);
+    }
+
+    $php = $findExecutable($candidates);
+
+    if ($php === null) {
+        $write("Could not find CLI PHP. Ask hosting support for the CLI PHP path and add it to redeploy.php.\n");
+        exit(127);
+    }
+
+    return $php;
+};
+
 $downloadComposer = static function (string $targetFile, callable $write): bool {
     $write("Composer was not found on PATH. Downloading local composer.phar...\n");
 
@@ -64,7 +109,7 @@ $downloadComposer = static function (string $targetFile, callable $write): bool 
     return true;
 };
 
-$phpCommand = $shellArg(PHP_BINARY ?: 'php');
+$phpCommand = $shellArg($findCliPhp($findExecutable, $write));
 $composerPhar = $baseDir . DIRECTORY_SEPARATOR . 'composer.phar';
 $composerCommand = null;
 
@@ -145,7 +190,7 @@ $commands = [
     ],
     [
         'label' => 'Running database migrations',
-        'command' => 'php artisan migrate --force',
+        'command' => $phpCommand . ' artisan migrate --force',
     ],
 ];
 
