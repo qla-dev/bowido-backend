@@ -7,7 +7,7 @@ ini_set('memory_limit', '512M');
 ini_set('output_buffering', '0');
 ini_set('zlib.output_compression', '0');
 
-$baseDir = __DIR__;
+$baseDir = dirname(__DIR__);
 chdir($baseDir);
 putenv('COMPOSER_ALLOW_SUPERUSER=1');
 putenv('COMPOSER_NO_INTERACTION=1');
