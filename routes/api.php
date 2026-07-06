@@ -15,6 +15,10 @@ use App\Modules\Statuses\Controllers\StatusController;
 use App\Modules\Users\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
+Route::get('health', fn () => response()->json([
+    'status' => 'ok',
+]));
+
 Route::prefix('auth')->group(function (): void {
     Route::get('login-options', [AuthController::class, 'loginOptions']);
     Route::post('login', [AuthController::class, 'login']);

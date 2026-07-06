@@ -15,6 +15,7 @@ readonly class PalletData
         public string $type,
         public string $assetType,
         public string $qrCode,
+        public string $palletName,
         public ?string $referenceCode,
         public ?string $currentLocation,
         public ?string $notes,
@@ -29,12 +30,15 @@ readonly class PalletData
      */
     public static function fromArray(array $attributes): self
     {
+        $qrCode = Normalizer::qrCode((string) ($attributes['qr_code'] ?? $attributes['pallet_name'] ?? ''));
+
         return new self(
             userId: (int) $attributes['user_id'],
             currentStatusId: (int) $attributes['current_status_id'],
             type: trim((string) ($attributes['type'] ?? $attributes['asset_type'] ?? 'pallet')),
             assetType: trim((string) ($attributes['asset_type'] ?? 'pallet')),
-            qrCode: Normalizer::qrCode((string) $attributes['qr_code']),
+            qrCode: $qrCode,
+            palletName: $qrCode,
             referenceCode: $attributes['reference_code'] ?? null,
             currentLocation: $attributes['current_location'] ?? null,
             notes: $attributes['notes'] ?? null,
@@ -55,6 +59,7 @@ readonly class PalletData
             'type' => $this->type,
             'asset_type' => $this->assetType,
             'qr_code' => $this->qrCode,
+            'pallet_name' => $this->palletName,
             'reference_code' => $this->referenceCode,
             'current_location' => $this->currentLocation,
             'notes' => $this->notes,

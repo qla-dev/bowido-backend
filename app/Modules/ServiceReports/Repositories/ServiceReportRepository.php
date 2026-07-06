@@ -24,7 +24,7 @@ class ServiceReportRepository extends BaseRepository
 
     protected function relations(): array
     {
-        return ['pallet.user.role', 'pallet.currentStatus', 'reportedByUser.role', 'resolvedByUser.role'];
+        return [];
     }
 
     protected function scopeForActor(Builder $query, ?User $actor): Builder

@@ -26,7 +26,7 @@ class CustomerDetailRepository extends BaseRepository
 
     protected function relations(): array
     {
-        return ['user.role'];
+        return ['user'];
     }
 
     protected function scopeForActor(Builder $query, ?User $actor): Builder

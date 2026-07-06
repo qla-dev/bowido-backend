@@ -42,18 +42,24 @@ class AuthService
 
         $result = $this->issueToken($user, $data->tokenName);
 
-        $this->startSession(
-            request: $request,
-            user: $result['user'],
-            plainTextToken: $result['token'],
-            tokenExpiresAt: $result['expires_at'],
-        );
+        $shouldStartSession = $this->shouldStartSession($request);
+
+        if ($shouldStartSession) {
+            $result['user']->loadMissing(['role.rolePermissions.module', 'customerDetail']);
+
+            $this->startSession(
+                request: $request,
+                user: $result['user'],
+                plainTextToken: $result['token'],
+                tokenExpiresAt: $result['expires_at'],
+            );
+        }
 
         return [
             'token' => $result['token'],
             'token_type' => 'Bearer',
             'expires_at' => $result['expires_at'],
-            'session_expires_at' => $this->sessionExpiresAt(),
+            'session_expires_at' => $shouldStartSession ? $this->sessionExpiresAt() : null,
             'user' => $result['user'],
         ];
     }
@@ -177,7 +183,14 @@ class AuthService
     {
         $user->forceFill(['last_login_at' => now()])->save();
 
-        return $user->fresh(['role.rolePermissions.module', 'customerDetail']);
+        return $user->loadMissing(['role', 'customerDetail']);
+    }
+
+    private function shouldStartSession(Request $request): bool
+    {
+        $tokenOnly = strtolower((string) $request->headers->get('X-Trackpal-Token-Only', ''));
+
+        return ! in_array($tokenOnly, ['1', 'true', 'yes'], true);
     }
 
     private function sessionExpiresAt(): string

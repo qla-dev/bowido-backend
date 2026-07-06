@@ -287,6 +287,66 @@ class AuthFeatureTest extends TestCase
         $this->assertDatabaseCount('api_tokens', 0);
     }
 
+    public function test_frontend_token_only_login_skips_web_session(): void
+    {
+        config(['session.driver' => 'database']);
+
+        $user = $this->makeUser('admin', [
+            'email' => 'admin@example.com',
+            'password' => 'password123',
+        ]);
+
+        $loginResponse = $this
+            ->withHeader('X-Trackpal-Token-Only', 'true')
+            ->postJson('/api/auth/login', [
+                'email' => $user->email,
+                'password' => 'password123',
+                'token_name' => 'feature-test',
+            ]);
+
+        $loginResponse
+            ->assertOk()
+            ->assertJsonPath('data.token_type', 'Bearer')
+            ->assertJsonPath('data.session_expires_at', null)
+            ->assertJsonPath('data.user.email', 'admin@example.com')
+            ->assertJsonPath('data.user.role.name', 'admin');
+
+        $token = $loginResponse->json('data.token');
+        $roleData = $loginResponse->json('data.user.role');
+
+        $this->assertNotNull($token);
+        $this->assertNull($loginResponse->getCookie(config('session.cookie')));
+        $this->assertIsArray($roleData);
+        $this->assertArrayNotHasKey('role_permissions', $roleData);
+        $this->assertDatabaseCount('sessions', 0);
+        $this->assertDatabaseCount('api_tokens', 1);
+
+        app('auth')->forgetGuards();
+
+        $profileResponse = $this->call(
+            'GET',
+            '/api/auth/me',
+            [],
+            [],
+            [],
+            [
+                'HTTP_ACCEPT' => 'application/json',
+                'HTTP_AUTHORIZATION' => 'Bearer '.$token,
+                'HTTP_X_TRACKPAL_TOKEN_ONLY' => 'true',
+            ],
+        );
+
+        $profileResponse
+            ->assertOk()
+            ->assertJsonPath('data.email', 'admin@example.com');
+
+        $profileRoleData = $profileResponse->json('data.role');
+
+        $this->assertIsArray($profileRoleData);
+        $this->assertArrayNotHasKey('role_permissions', $profileRoleData);
+        $this->assertDatabaseCount('sessions', 0);
+    }
+
     public function test_invalid_credentials_are_rejected(): void
     {
         $user = $this->makeUser('admin', [

@@ -92,6 +92,27 @@ class MockDataSeeder extends Seeder
                 'phone_number' => '+38761100008',
                 'password' => 'password123',
             ],
+            'customer_eindhoven' => [
+                'role' => 'customer',
+                'name' => 'Eindhoven Parts B.V.',
+                'email' => 'eindhoven.parts@example.com',
+                'phone_number' => '+31402041120',
+                'password' => 'password123',
+            ],
+            'customer_rotterdam' => [
+                'role' => 'customer',
+                'name' => 'Rotterdam Fresh Logistics B.V.',
+                'email' => 'rotterdam.fresh@example.com',
+                'phone_number' => '+31103189914',
+                'password' => 'password123',
+            ],
+            'customer_sarajevo' => [
+                'role' => 'customer',
+                'name' => 'Sarajevo Trade d.o.o.',
+                'email' => 'sarajevo.trade@example.com',
+                'phone_number' => '+38733781226',
+                'password' => 'password123',
+            ],
         ])->mapWithKeys(function (array $user, string $key) use ($roles): array {
             return [
                 $key => User::query()->updateOrCreate(
@@ -148,6 +169,48 @@ class MockDataSeeder extends Seeder
                 'default_price_per_day' => 1.95,
                 'grace_period_days' => 3,
                 'notes' => 'Export customer with recurring return pickups.',
+                'is_active' => true,
+            ],
+            'customer_eindhoven' => [
+                'company_name' => 'Eindhoven Parts B.V.',
+                'country' => 'NL',
+                'kvk' => '74291836',
+                'billing_email' => 'finance@eindhoven-parts.nl',
+                'billing_address' => 'Achtseweg Zuid 151, Eindhoven, Netherlands',
+                'delivery_address' => 'Veldhovenweg 18, Eindhoven, Netherlands',
+                'tax_number' => '74291836',
+                'vat_number' => 'NL742918360B01',
+                'default_price_per_day' => 1.85,
+                'grace_period_days' => 4,
+                'notes' => 'Frontend scanner demo customer seeded into the database.',
+                'is_active' => true,
+            ],
+            'customer_rotterdam' => [
+                'company_name' => 'Rotterdam Fresh Logistics B.V.',
+                'country' => 'NL',
+                'kvk' => '80412670',
+                'billing_email' => 'billing@rotterdam-fresh.nl',
+                'billing_address' => 'Albert Plesmanweg 65, Rotterdam, Netherlands',
+                'delivery_address' => 'Waalhaven Zuidzijde 19, Rotterdam, Netherlands',
+                'tax_number' => '80412670',
+                'vat_number' => 'NL804126700B01',
+                'default_price_per_day' => 2.25,
+                'grace_period_days' => 3,
+                'notes' => 'Frontend location-directory mock customer seeded into the database.',
+                'is_active' => true,
+            ],
+            'customer_sarajevo' => [
+                'company_name' => 'Sarajevo Trade d.o.o.',
+                'country' => 'BiH',
+                'kvk' => '4207812260005',
+                'billing_email' => 'finance@sarajevo-trade.ba',
+                'billing_address' => 'Kurta Schorka 14, Sarajevo, Bosnia and Herzegovina',
+                'delivery_address' => 'Rajlovacka cesta 18, Sarajevo, Bosnia and Herzegovina',
+                'tax_number' => '4207812260005',
+                'vat_number' => 'BA207812260005',
+                'default_price_per_day' => 2.05,
+                'grace_period_days' => 2,
+                'notes' => 'Frontend location-directory mock customer seeded into the database.',
                 'is_active' => true,
             ],
         ])->each(function (array $detail, string $userKey) use ($users): void {
@@ -227,6 +290,61 @@ class MockDataSeeder extends Seeder
                 'last_status_changed_at' => now()->subDays(7),
                 'metadata' => ['source' => 'seed', 'requires_admin_review' => true],
             ],
+            [
+                'user_key' => 'customer_eindhoven',
+                'status_slug' => 'bowido_warehouse',
+                'qr_code' => 'BOWNL-0001',
+                'reference_code' => 'FRONTEND-DEMO-0001',
+                'type' => 'A120',
+                'current_location' => 'Maxwellstraat 2-4, 3316 GP Dordrecht',
+                'notes' => 'Seeded from the frontend scanner demo QR list.',
+                'last_status_changed_at' => now()->subDays(1),
+                'metadata' => ['source' => 'frontend_mock', 'scanner_demo' => true],
+            ],
+            [
+                'user_key' => 'customer_eindhoven',
+                'status_slug' => 'at_customer',
+                'qr_code' => 'BOWNL-0002',
+                'reference_code' => 'FRONTEND-DEMO-0002',
+                'type' => 'A80',
+                'current_location' => 'Veldhovenweg 18, Eindhoven, Netherlands',
+                'notes' => 'Seeded from the frontend scanner demo QR list.',
+                'last_status_changed_at' => now()->subDays(8),
+                'metadata' => ['source' => 'frontend_mock', 'scanner_demo' => true],
+            ],
+            [
+                'user_key' => 'customer_rotterdam',
+                'status_slug' => 'pending_return',
+                'qr_code' => 'BOWNL-0003',
+                'reference_code' => 'FRONTEND-DEMO-0003',
+                'type' => 'T80',
+                'current_location' => 'Waalhaven Zuidzijde 19, Rotterdam, Netherlands',
+                'notes' => 'Seeded from the frontend scanner demo QR list.',
+                'last_status_changed_at' => now()->subDays(3),
+                'metadata' => ['source' => 'frontend_mock', 'scanner_demo' => true],
+            ],
+            [
+                'user_key' => 'customer_rotterdam',
+                'status_slug' => 'transport',
+                'qr_code' => 'BOWNL-0004',
+                'reference_code' => 'FRONTEND-DEMO-0004',
+                'type' => 'T120',
+                'current_location' => 'Truck NL-BIH / A2 Eindhoven',
+                'notes' => 'Seeded from the frontend scanner demo QR list.',
+                'last_status_changed_at' => now()->subDays(2),
+                'metadata' => ['source' => 'frontend_mock', 'scanner_demo' => true, 'lane' => 'NL-BiH'],
+            ],
+            [
+                'user_key' => 'customer_sarajevo',
+                'status_slug' => 'service',
+                'qr_code' => 'BOWNL-0005',
+                'reference_code' => 'FRONTEND-DEMO-0005',
+                'type' => 'Grijs',
+                'current_location' => 'Bowido Service Bench',
+                'notes' => 'Seeded from the frontend scanner demo QR list.',
+                'last_status_changed_at' => now()->subHours(10),
+                'metadata' => ['source' => 'frontend_mock', 'scanner_demo' => true, 'issue' => 'Corner block inspection'],
+            ],
         ])->each(function (array $pallet) use ($statuses, $users): void {
             Pallet::query()->updateOrCreate(
                 ['qr_code' => $pallet['qr_code']],
@@ -294,6 +412,11 @@ class MockDataSeeder extends Seeder
                 'BOW-PAL-0004',
                 'BOW-PAL-0005',
                 'BOW-PAL-0006',
+                'BOWNL-0001',
+                'BOWNL-0002',
+                'BOWNL-0003',
+                'BOWNL-0004',
+                'BOWNL-0005',
                 'GHOST-0001',
                 'GHOST-0002',
             ])
@@ -345,6 +468,39 @@ class MockDataSeeder extends Seeder
                 'note' => 'Ghost pallet report created by customer.',
                 'created_at' => now()->subDays(4),
             ],
+            [
+                'pallet_qr' => 'BOWNL-0002',
+                'actor_key' => 'driver',
+                'event_type' => AuditEventType::StatusChanged->value,
+                'old_status_slug' => 'transport',
+                'new_status_slug' => 'at_customer',
+                'old_location' => 'Truck NL-BIH / A2 Eindhoven',
+                'new_location' => 'Veldhovenweg 18, Eindhoven, Netherlands',
+                'note' => 'Frontend demo pallet delivered to customer.',
+                'created_at' => now()->subDays(8),
+            ],
+            [
+                'pallet_qr' => 'BOWNL-0004',
+                'actor_key' => 'driver',
+                'event_type' => AuditEventType::StatusChanged->value,
+                'old_status_slug' => 'bowido_warehouse',
+                'new_status_slug' => 'transport',
+                'old_location' => 'Maxwellstraat 2-4, 3316 GP Dordrecht',
+                'new_location' => 'Truck NL-BIH / A2 Eindhoven',
+                'note' => 'Frontend demo pallet loaded for transport.',
+                'created_at' => now()->subDays(2),
+            ],
+            [
+                'pallet_qr' => 'BOWNL-0005',
+                'actor_key' => 'technician',
+                'event_type' => AuditEventType::StatusChanged->value,
+                'old_status_slug' => 'at_customer',
+                'new_status_slug' => 'service',
+                'old_location' => 'Rajlovacka cesta 18, Sarajevo, Bosnia and Herzegovina',
+                'new_location' => 'Bowido Service Bench',
+                'note' => 'Frontend demo pallet sent to service.',
+                'created_at' => now()->subHours(10),
+            ],
         ])->each(function (array $log) use ($pallets, $statuses, $users): void {
             $pallet = $pallets[$log['pallet_qr']] ?? null;
 
@@ -392,6 +548,26 @@ class MockDataSeeder extends Seeder
                 ],
             );
             $serviceReport->forceFill(['created_at' => now()->subHours(18), 'updated_at' => now()->subHours(18)])->save();
+        }
+
+        $frontendDemoServicePallet = $pallets['BOWNL-0005'] ?? null;
+
+        if ($frontendDemoServicePallet instanceof Pallet) {
+            $serviceReport = ServiceReport::query()->updateOrCreate(
+                ['pallet_id' => $frontendDemoServicePallet->id, 'status' => ServiceReportStatus::Open->value],
+                [
+                    'reported_by_user_id' => $users['technician']->id,
+                    'resolved_by_user_id' => null,
+                    'severity' => 'medium',
+                    'issue_type' => 'corner_block_inspection',
+                    'description' => 'Frontend demo pallet requires corner block inspection before release.',
+                    'resolution_note' => null,
+                    'image_path' => null,
+                    'resolved_at' => null,
+                    'metadata' => ['source' => 'frontend_mock'],
+                ],
+            );
+            $serviceReport->forceFill(['created_at' => now()->subHours(10), 'updated_at' => now()->subHours(10)])->save();
         }
 
         collect([
@@ -463,6 +639,21 @@ class MockDataSeeder extends Seeder
                 'notes' => 'May transport and storage settlement.',
                 'items' => [
                     ['pallet_qr' => 'BOW-PAL-0004', 'description' => 'Pending return handling', 'billed_days' => 2, 'price_per_day' => 2.10],
+                ],
+            ],
+            [
+                'user_key' => 'customer_eindhoven',
+                'invoice_number' => 'INV-2026-003',
+                'status' => InvoiceStatus::Issued->value,
+                'period_start' => now()->subMonth()->startOfMonth()->toDateString(),
+                'period_end' => now()->subMonth()->endOfMonth()->toDateString(),
+                'issued_at' => now()->subDays(16),
+                'due_at' => now()->subDays(2)->toDateString(),
+                'paid_at' => null,
+                'notes' => 'Frontend demo scanner pallet billing.',
+                'items' => [
+                    ['pallet_qr' => 'BOWNL-0002', 'description' => 'Storage Fee (frontend demo pallet)', 'billed_days' => 6, 'price_per_day' => 1.85],
+                    ['pallet_qr' => 'BOWNL-0003', 'description' => 'Return handling (frontend demo pallet)', 'billed_days' => 1, 'price_per_day' => 8.00],
                 ],
             ],
         ])->each(function (array $invoiceData) use ($pallets, $users): void {

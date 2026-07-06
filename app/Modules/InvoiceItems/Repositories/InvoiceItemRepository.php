@@ -22,7 +22,7 @@ class InvoiceItemRepository extends BaseRepository
 
     protected function relations(): array
     {
-        return ['invoice.user.role', 'pallet.currentStatus'];
+        return ['pallet.currentStatus'];
     }
 
     protected function scopeForActor(Builder $query, ?User $actor): Builder

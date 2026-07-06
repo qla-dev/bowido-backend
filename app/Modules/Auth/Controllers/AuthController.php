@@ -49,6 +49,9 @@ class AuthController extends ApiController
             'eva.vandijk@example.com',
             'amar.kovac@example.com',
             'lejla.hadzic@example.com',
+            'eindhoven.parts@example.com',
+            'rotterdam.fresh@example.com',
+            'sarajevo.trade@example.com',
         ];
 
         $users = User::query()
@@ -85,7 +88,16 @@ class AuthController extends ApiController
 
     public function me(Request $request): JsonResponse
     {
-        $request->user()->loadMissing(['role.rolePermissions.module', 'customerDetail']);
+        $tokenOnly = in_array(
+            strtolower((string) $request->headers->get('X-Trackpal-Token-Only', '')),
+            ['1', 'true', 'yes'],
+            true,
+        );
+        $relations = $tokenOnly
+            ? ['role', 'customerDetail']
+            : ['role.rolePermissions.module', 'customerDetail'];
+
+        $request->user()->loadMissing($relations);
 
         return $this->success(
             (new UserResource($request->user()))->resolve(),

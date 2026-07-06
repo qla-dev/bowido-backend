@@ -23,7 +23,7 @@ class AuditLogRepository extends BaseRepository
 
     protected function relations(): array
     {
-        return ['pallet.currentStatus', 'madeByUser.role', 'oldStatus', 'newStatus', 'oldClient.role', 'newClient.role'];
+        return ['pallet', 'madeByUser', 'oldStatus', 'newStatus', 'oldClient.customerDetail', 'newClient.customerDetail'];
     }
 
     protected function scopeForActor(Builder $query, ?User $actor): Builder
