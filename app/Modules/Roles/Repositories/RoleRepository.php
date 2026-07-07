@@ -22,6 +22,32 @@ class RoleRepository extends BaseRepository
         return $query->orderBy('name');
     }
 
+    protected function applySearch(Builder $query, ?string $search): Builder
+    {
+        $search = trim((string) $search);
+
+        if ($search === '') {
+            return $query;
+        }
+
+        $like = "%{$search}%";
+
+        return $query->where(function (Builder $builder) use ($like): void {
+            $builder
+                ->where('name', 'like', $like)
+                ->orWhere('description', 'like', $like);
+        });
+    }
+
+    protected function allowedSorts(): array
+    {
+        return [
+            'name' => 'name',
+            'description' => 'description',
+            'created_at' => 'created_at',
+        ];
+    }
+
     protected function relations(): array
     {
         return ['rolePermissions.module'];

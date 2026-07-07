@@ -34,7 +34,9 @@ class AuthService
      */
     public function login(LoginData $data, Request $request): array
     {
-        $user = $this->userRepository->findByEmailForAuth($data->email);
+        $user = $data->loginType === 'customer'
+            ? $this->userRepository->findByKvkForAuth((string) $data->kvk)
+            : $this->userRepository->findByEmailForAuth((string) $data->email);
 
         if (! $user || ! $user->is_active || ! Hash::check($data->password, $user->password)) {
             throw new AuthenticationException(__('Invalid credentials.'));

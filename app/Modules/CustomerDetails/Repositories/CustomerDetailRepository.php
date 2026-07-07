@@ -38,6 +38,65 @@ class CustomerDetailRepository extends BaseRepository
         return $query;
     }
 
+    protected function applySearch(Builder $query, ?string $search): Builder
+    {
+        $search = trim((string) $search);
+
+        if ($search === '') {
+            return $query;
+        }
+
+        $like = "%{$search}%";
+
+        return $query->where(function (Builder $builder) use ($like): void {
+            $builder
+                ->where('company_name', 'like', $like)
+                ->orWhere('country', 'like', $like)
+                ->orWhere('province', 'like', $like)
+                ->orWhere('kvk', 'like', $like)
+                ->orWhere('billing_email', 'like', $like)
+                ->orWhere('fixed_phone', 'like', $like)
+                ->orWhere('billing_address', 'like', $like)
+                ->orWhere('delivery_address', 'like', $like)
+                ->orWhere('tax_number', 'like', $like)
+                ->orWhere('vat_number', 'like', $like)
+                ->orWhereHas('user', function (Builder $userQuery) use ($like): void {
+                    $userQuery
+                        ->where('name', 'like', $like)
+                        ->orWhere('email', 'like', $like)
+                        ->orWhere('phone_number', 'like', $like);
+                });
+        });
+    }
+
+    protected function allowedSorts(): array
+    {
+        return [
+            'client' => 'company_name',
+            'name' => 'company_name',
+            'company_name' => 'company_name',
+            'kvk' => 'kvk',
+            'fixed_phone' => 'fixed_phone',
+            'phone' => fn (Builder $query, string $direction) => $query->orderBy(
+                User::query()
+                    ->select('phone_number')
+                    ->whereColumn('users.id', 'customer_details.user_id')
+                    ->limit(1),
+                $direction,
+            )->orderBy('id'),
+            'address' => 'delivery_address',
+            'warehouses' => 'delivery_address',
+            'country' => 'country',
+            'province' => 'province',
+            'rate' => 'default_price_per_day',
+            'price_per_day' => 'default_price_per_day',
+            'gracePeriod' => 'grace_period_days',
+            'grace_period' => 'grace_period_days',
+            'is_active' => 'is_active',
+            'created_at' => 'created_at',
+        ];
+    }
+
     public function findByUserId(int $userId): ?CustomerDetail
     {
         return CustomerDetail::query()->where('user_id', $userId)->first();
