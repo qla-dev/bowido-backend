@@ -33,6 +33,9 @@ class ModuleController extends ApiController
                     ...$queryData->filters,
                     'is_active' => true,
                 ],
+                search: $queryData->search,
+                sortBy: $queryData->sortBy,
+                sortDirection: $queryData->sortDirection,
             );
         }
 
