@@ -2,10 +2,10 @@
 
 namespace Tests\Unit;
 
+use App\Modules\CalendarNotes\Models\CalendarNote;
 use App\Modules\CustomerDetails\Models\CustomerDetail;
 use App\Modules\InvoiceItems\Models\InvoiceItem;
 use App\Modules\Invoices\Models\Invoice;
-use App\Modules\Modules\Models\Module;
 use App\Modules\Pallets\Models\Pallet;
 use App\Modules\Statuses\Models\Status;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -27,6 +27,8 @@ class SchemaAndRelationshipTest extends TestCase
             'audit_logs',
             'service_reports',
             'ghost_pallet_reports',
+            'calendar_notes',
+            'calendar_note_user',
             'invoices',
             'invoice_items',
             'modules',
@@ -47,6 +49,14 @@ class SchemaAndRelationshipTest extends TestCase
             'current_status_id' => $status->id,
         ]);
         $invoice = Invoice::factory()->create(['user_id' => $user->id]);
+        $calendarNote = CalendarNote::query()->create([
+            'created_by_user_id' => $user->id,
+            'note_date' => now()->toDateString(),
+            'note_time' => '09:00',
+            'title' => 'Reminder',
+            'note' => 'Check billing.',
+        ]);
+        $calendarNote->notifiedUsers()->attach($user->id, ['notified_at' => now()]);
         $invoiceItem = InvoiceItem::factory()->create([
             'invoice_id' => $invoice->id,
             'pallet_id' => $pallet->id,
@@ -57,6 +67,8 @@ class SchemaAndRelationshipTest extends TestCase
         $this->assertSame($customerDetail->id, $user->customerDetail->id);
         $this->assertSame($status->id, $pallet->currentStatus->id);
         $this->assertSame($user->id, $invoice->user->id);
+        $this->assertSame($user->id, $calendarNote->creator->id);
+        $this->assertTrue($calendarNote->notifiedUsers()->whereKey($user->id)->exists());
         $this->assertSame($invoice->id, $invoiceItem->invoice->id);
         $this->assertSame($pallet->id, $invoiceItem->pallet->id);
     }
