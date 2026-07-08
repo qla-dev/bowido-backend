@@ -2,9 +2,9 @@
 
 namespace App\Modules\Auth\Requests;
 
+use App\Modules\Auth\Support\AuthLoginLogger;
 use App\Modules\Shared\Http\Requests\ApiFormRequest;
 use Illuminate\Contracts\Validation\Validator;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class LoginRequest extends ApiFormRequest
@@ -22,7 +22,7 @@ class LoginRequest extends ApiFormRequest
 
     protected function failedValidation(Validator $validator): void
     {
-        Log::warning('Auth login validation failed.', [
+        AuthLoginLogger::warning('Auth login validation failed.', [
             'path' => $this->path(),
             'method' => $this->method(),
             'host' => $this->getHost(),

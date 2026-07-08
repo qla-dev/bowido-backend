@@ -6,6 +6,7 @@ use App\Modules\Auth\DTOs\LoginData;
 use App\Modules\Auth\DTOs\RegisterData;
 use App\Modules\Auth\Models\ApiToken;
 use App\Modules\Auth\Repositories\ApiTokenRepository;
+use App\Modules\Auth\Support\AuthLoginLogger;
 use App\Modules\Roles\Models\Role;
 use App\Modules\Users\Models\User;
 use App\Modules\Users\Repositories\UserRepository;
@@ -14,7 +15,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -41,7 +41,7 @@ class AuthService
 
         $request->attributes->set('auth_login_trace_id', $traceId);
 
-        Log::info('Auth login started.', array_merge(
+        AuthLoginLogger::info('Auth login started.', array_merge(
             $this->requestContext($request, $traceId),
             $this->loginDataContext($data),
         ));
@@ -51,14 +51,14 @@ class AuthService
                 ? $this->userRepository->findByKvkForAuth((string) $data->kvk)
                 : $this->userRepository->findByEmailForAuth((string) $data->email);
 
-            Log::info('Auth login user lookup completed.', array_merge(
+            AuthLoginLogger::info('Auth login user lookup completed.', array_merge(
                 $this->requestContext($request, $traceId),
                 $this->loginDataContext($data),
                 $this->userContext($user),
             ));
 
             if (! $user) {
-                Log::warning('Auth login failed: user not found.', array_merge(
+                AuthLoginLogger::warning('Auth login failed: user not found.', array_merge(
                     $this->requestContext($request, $traceId),
                     $this->loginDataContext($data),
                 ));
@@ -67,7 +67,7 @@ class AuthService
             }
 
             if (! $user->is_active) {
-                Log::warning('Auth login failed: user inactive.', array_merge(
+                AuthLoginLogger::warning('Auth login failed: user inactive.', array_merge(
                     $this->requestContext($request, $traceId),
                     $this->userContext($user),
                 ));
@@ -76,7 +76,7 @@ class AuthService
             }
 
             if (! Hash::check($data->password, $user->password)) {
-                Log::warning('Auth login failed: password mismatch.', array_merge(
+                AuthLoginLogger::warning('Auth login failed: password mismatch.', array_merge(
                     $this->requestContext($request, $traceId),
                     $this->userContext($user),
                 ));
@@ -84,7 +84,7 @@ class AuthService
                 throw new AuthenticationException(__('Invalid credentials.'));
             }
 
-            Log::info('Auth login credentials accepted.', array_merge(
+            AuthLoginLogger::info('Auth login credentials accepted.', array_merge(
                 $this->requestContext($request, $traceId),
                 $this->userContext($user),
             ));
@@ -93,7 +93,7 @@ class AuthService
 
             $shouldStartSession = $this->shouldStartSession($request);
 
-            Log::info('Auth login session decision made.', array_merge(
+            AuthLoginLogger::info('Auth login session decision made.', array_merge(
                 $this->requestContext($request, $traceId),
                 $this->userContext($result['user']),
                 [
@@ -116,7 +116,7 @@ class AuthService
 
             $sessionExpiresAt = $shouldStartSession ? $this->sessionExpiresAt() : null;
 
-            Log::info('Auth login completed.', array_merge(
+            AuthLoginLogger::info('Auth login completed.', array_merge(
                 $this->requestContext($request, $traceId),
                 $this->userContext($result['user']),
                 [
@@ -136,7 +136,7 @@ class AuthService
         } catch (AuthenticationException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            Log::error('Auth login crashed.', array_merge(
+            AuthLoginLogger::error('Auth login crashed.', array_merge(
                 $this->requestContext($request, $traceId),
                 $this->loginDataContext($data),
                 $this->exceptionContext($exception),
@@ -231,7 +231,7 @@ class AuthService
      */
     private function issueToken(User $user, string $tokenName, string $traceId): array
     {
-        Log::info('Auth token issue started.', [
+        AuthLoginLogger::info('Auth token issue started.', [
             'trace_id' => $traceId,
             'user_id' => $user->id,
             'token_name' => Str::limit($tokenName, 100),
@@ -251,7 +251,7 @@ class AuthService
 
             $authenticatedUser = $this->markUserLoggedIn($user);
 
-            Log::info('Auth token issued.', [
+            AuthLoginLogger::info('Auth token issued.', [
                 'trace_id' => $traceId,
                 'user_id' => $authenticatedUser->id,
                 'api_token_id' => $apiToken->id,
@@ -271,7 +271,7 @@ class AuthService
     private function startSession(Request $request, User $user, string $plainTextToken, ?string $tokenExpiresAt, string $traceId): void
     {
         if (! $request->hasSession()) {
-            Log::warning('Auth login session was requested but request has no session store.', array_merge(
+            AuthLoginLogger::warning('Auth login session was requested but request has no session store.', array_merge(
                 $this->requestContext($request, $traceId),
                 $this->userContext($user),
             ));
@@ -279,7 +279,7 @@ class AuthService
             return;
         }
 
-        Log::info('Auth login session start requested.', array_merge(
+        AuthLoginLogger::info('Auth login session start requested.', array_merge(
             $this->requestContext($request, $traceId),
             $this->userContext($user),
             [
@@ -294,7 +294,7 @@ class AuthService
         $request->session()->put(self::SESSION_AUTH_TOKEN_KEY, $plainTextToken);
         $request->session()->put(self::SESSION_AUTH_TOKEN_EXPIRES_AT_KEY, $tokenExpiresAt);
 
-        Log::info('Auth login session started.', array_merge(
+        AuthLoginLogger::info('Auth login session started.', array_merge(
             $this->requestContext($request, $traceId),
             $this->userContext($user),
             [
