@@ -384,7 +384,7 @@ class AuthFeatureTest extends TestCase
 
     public function test_invalid_credentials_are_rejected(): void
     {
-        $authLogPath = storage_path('logs/auth-login.log');
+        $authLogPath = storage_path('logs/laravel.log');
 
         if (file_exists($authLogPath)) {
             unlink($authLogPath);

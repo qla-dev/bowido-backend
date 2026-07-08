@@ -7,7 +7,7 @@ use Throwable;
 
 final class AuthLoginLogger
 {
-    private const LOG_FILE = 'auth-login.log';
+    private const LOG_FILE = 'laravel.log';
 
     /**
      * @param  array<string, mixed>  $context
@@ -55,7 +55,7 @@ final class AuthLoginLogger
             ])->log($level, $message, $context);
         } catch (Throwable $exception) {
             error_log(sprintf(
-                '[auth-login-log-failed] %s: %s',
+                '[laravel-log-auth-login-failed] %s: %s',
                 $message,
                 $exception->getMessage(),
             ));
