@@ -29,12 +29,6 @@ class Normalizer
 
     public static function qrCode(string $value): string
     {
-        $value = trim($value);
-
-        if (preg_match('/^https?:\/\//i', $value) === 1) {
-            return preg_replace('/\s+/', '', $value) ?? $value;
-        }
-
         return Str::of($value)
             ->upper()
             ->replaceMatches('/\s+/', '')

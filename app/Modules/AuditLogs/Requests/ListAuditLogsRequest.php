@@ -14,8 +14,6 @@ class ListAuditLogsRequest extends PaginatedIndexRequest
             'event_type' => ['sometimes', 'string', 'max:255'],
             'old_status_id' => ['sometimes', 'integer', 'exists:statuses,id'],
             'new_status_id' => ['sometimes', 'integer', 'exists:statuses,id'],
-            'created_from' => ['sometimes', 'date'],
-            'created_to' => ['sometimes', 'date'],
         ];
     }
 }

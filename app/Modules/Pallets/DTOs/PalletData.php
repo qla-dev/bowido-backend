@@ -31,12 +31,6 @@ readonly class PalletData
     public static function fromArray(array $attributes): self
     {
         $qrCode = Normalizer::qrCode((string) ($attributes['qr_code'] ?? $attributes['pallet_name'] ?? ''));
-        $palletName = isset($attributes['pallet_name']) && trim((string) $attributes['pallet_name']) !== ''
-            ? Normalizer::qrCode((string) $attributes['pallet_name'])
-            : $qrCode;
-        $referenceCode = isset($attributes['reference_code']) && trim((string) $attributes['reference_code']) !== ''
-            ? Normalizer::qrCode((string) $attributes['reference_code'])
-            : null;
 
         return new self(
             userId: (int) $attributes['user_id'],
@@ -44,8 +38,8 @@ readonly class PalletData
             type: trim((string) ($attributes['type'] ?? $attributes['asset_type'] ?? 'pallet')),
             assetType: trim((string) ($attributes['asset_type'] ?? 'pallet')),
             qrCode: $qrCode,
-            palletName: $palletName,
-            referenceCode: $referenceCode,
+            palletName: $qrCode,
+            referenceCode: $attributes['reference_code'] ?? null,
             currentLocation: $attributes['current_location'] ?? null,
             notes: $attributes['notes'] ?? null,
             isActive: (bool) ($attributes['is_active'] ?? true),

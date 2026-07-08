@@ -20,8 +20,6 @@ class AuditLogRepository extends BaseRepository
             'event_type' => 'event_type',
             'old_status_id' => 'old_status_id',
             'new_status_id' => 'new_status_id',
-            'created_from' => fn (Builder $query, mixed $value) => $query->whereDate('created_at', '>=', $value),
-            'created_to' => fn (Builder $query, mixed $value) => $query->whereDate('created_at', '<=', $value),
         ];
     }
 
