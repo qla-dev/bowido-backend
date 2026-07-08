@@ -9,7 +9,7 @@ class LocalizationFeatureTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_authentication_error_is_translated_to_bosnian(): void
+    public function test_login_failure_message_uses_locale_header(): void
     {
         $this->postJson('/api/auth/login', [
             'email' => 'missing@example.com',
@@ -17,7 +17,15 @@ class LocalizationFeatureTest extends TestCase
         ], [
             'X-Locale' => 'bs',
         ])->assertUnauthorized()
-            ->assertJsonPath('message', 'Neispravni pristupni podaci.');
+            ->assertJsonPath('message', 'Email ili lozinka nisu ispravni.');
+
+        $this->postJson('/api/auth/login', [
+            'email' => 'missing@example.com',
+            'password' => 'wrong-password',
+        ], [
+            'X-Locale' => 'nl',
+        ])->assertUnauthorized()
+            ->assertJsonPath('message', 'E-mail of wachtwoord is onjuist.');
     }
 
     public function test_accept_language_header_switches_to_dutch(): void
