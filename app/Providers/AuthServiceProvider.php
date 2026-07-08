@@ -5,6 +5,8 @@ namespace App\Providers;
 use App\Modules\AuditLogs\Models\AuditLog;
 use App\Modules\AuditLogs\Policies\AuditLogPolicy;
 use App\Modules\Auth\Models\ApiToken;
+use App\Modules\CalendarNotes\Models\CalendarNote;
+use App\Modules\CalendarNotes\Policies\CalendarNotePolicy;
 use App\Modules\CustomerDetails\Models\CustomerDetail;
 use App\Modules\CustomerDetails\Policies\CustomerDetailPolicy;
 use App\Modules\GhostPalletReports\Models\GhostPalletReport;
@@ -74,6 +76,7 @@ class AuthServiceProvider extends ServiceProvider
         Gate::policy(AuditLog::class, AuditLogPolicy::class);
         Gate::policy(ServiceReport::class, ServiceReportPolicy::class);
         Gate::policy(GhostPalletReport::class, GhostPalletReportPolicy::class);
+        Gate::policy(CalendarNote::class, CalendarNotePolicy::class);
         Gate::policy(Invoice::class, InvoicePolicy::class);
         Gate::policy(InvoiceItem::class, InvoiceItemPolicy::class);
         Gate::policy(Module::class, ModulePolicy::class);

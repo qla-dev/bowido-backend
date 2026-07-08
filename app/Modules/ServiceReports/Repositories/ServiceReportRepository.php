@@ -2,6 +2,7 @@
 
 namespace App\Modules\ServiceReports\Repositories;
 
+use App\Modules\Pallets\Models\Pallet;
 use App\Modules\ServiceReports\Models\ServiceReport;
 use App\Modules\Shared\Repositories\BaseRepository;
 use App\Modules\Users\Models\User;
@@ -34,6 +35,50 @@ class ServiceReportRepository extends BaseRepository
         }
 
         return $query;
+    }
+
+    protected function applySearch(Builder $query, ?string $search): Builder
+    {
+        $search = trim((string) $search);
+
+        if ($search === '') {
+            return $query;
+        }
+
+        $like = "%{$search}%";
+
+        return $query->where(function (Builder $builder) use ($like): void {
+            $builder
+                ->where('status', 'like', $like)
+                ->orWhere('severity', 'like', $like)
+                ->orWhere('issue_type', 'like', $like)
+                ->orWhere('description', 'like', $like)
+                ->orWhere('resolution_note', 'like', $like)
+                ->orWhereHas('pallet', function (Builder $palletQuery) use ($like): void {
+                    $palletQuery
+                        ->where('pallet_name', 'like', $like)
+                        ->orWhere('reference_code', 'like', $like)
+                        ->orWhere('qr_code', 'like', $like);
+                });
+        });
+    }
+
+    protected function allowedSorts(): array
+    {
+        return [
+            'status' => 'status',
+            'severity' => 'severity',
+            'issue_type' => 'issue_type',
+            'pallet' => fn (Builder $query, string $direction) => $query->orderBy(
+                Pallet::query()
+                    ->selectRaw("COALESCE(NULLIF(pallet_name, ''), NULLIF(reference_code, ''), qr_code)")
+                    ->whereColumn('pallets.id', 'service_reports.pallet_id')
+                    ->limit(1),
+                $direction,
+            )->orderBy('id'),
+            'resolved_at' => 'resolved_at',
+            'created_at' => 'created_at',
+        ];
     }
 
     public function lockForUpdate(int $id): ServiceReport

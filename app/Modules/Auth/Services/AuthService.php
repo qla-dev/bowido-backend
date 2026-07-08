@@ -6,6 +6,7 @@ use App\Modules\Auth\DTOs\LoginData;
 use App\Modules\Auth\DTOs\RegisterData;
 use App\Modules\Auth\Models\ApiToken;
 use App\Modules\Auth\Repositories\ApiTokenRepository;
+use App\Modules\Auth\Support\AuthLoginLogger;
 use App\Modules\Roles\Models\Role;
 use App\Modules\Users\Models\User;
 use App\Modules\Users\Repositories\UserRepository;
@@ -16,12 +17,15 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class AuthService
 {
     private const SESSION_AUTH_TOKEN_KEY = 'auth_token';
 
     private const SESSION_AUTH_TOKEN_EXPIRES_AT_KEY = 'auth_token_expires_at';
+
+    private const INVALID_LOGIN_MESSAGE = 'Email or password are incorrect.';
 
     public function __construct(
         private readonly UserRepository $userRepository,
@@ -34,34 +38,117 @@ class AuthService
      */
     public function login(LoginData $data, Request $request): array
     {
-        $user = $this->userRepository->findByEmailForAuth($data->email);
+        $traceId = (string) Str::uuid();
+        $startedAt = microtime(true);
 
-        if (! $user || ! $user->is_active || ! Hash::check($data->password, $user->password)) {
-            throw new AuthenticationException(__('Invalid credentials.'));
+        $request->attributes->set('auth_login_trace_id', $traceId);
+
+        AuthLoginLogger::info('Auth login started.', array_merge(
+            $this->requestContext($request, $traceId),
+            $this->loginDataContext($data),
+        ));
+
+        try {
+            $user = $data->loginType === 'customer'
+                ? $this->userRepository->findByKvkForAuth((string) $data->kvk)
+                : $this->userRepository->findByEmailForAuth((string) $data->email);
+
+            AuthLoginLogger::info('Auth login user lookup completed.', array_merge(
+                $this->requestContext($request, $traceId),
+                $this->loginDataContext($data),
+                $this->userContext($user),
+            ));
+
+            if (! $user) {
+                AuthLoginLogger::warning('Auth login failed: user not found.', array_merge(
+                    $this->requestContext($request, $traceId),
+                    $this->loginDataContext($data),
+                ));
+
+                throw new AuthenticationException(self::INVALID_LOGIN_MESSAGE);
+            }
+
+            if (! $user->is_active) {
+                AuthLoginLogger::warning('Auth login failed: user inactive.', array_merge(
+                    $this->requestContext($request, $traceId),
+                    $this->userContext($user),
+                ));
+
+                throw new AuthenticationException(self::INVALID_LOGIN_MESSAGE);
+            }
+
+            if (! Hash::check($data->password, $user->password)) {
+                AuthLoginLogger::warning('Auth login failed: password mismatch.', array_merge(
+                    $this->requestContext($request, $traceId),
+                    $this->userContext($user),
+                ));
+
+                throw new AuthenticationException(self::INVALID_LOGIN_MESSAGE);
+            }
+
+            AuthLoginLogger::info('Auth login credentials accepted.', array_merge(
+                $this->requestContext($request, $traceId),
+                $this->userContext($user),
+            ));
+
+            $result = $this->issueToken($user, $data->tokenName, $traceId);
+
+            $shouldStartSession = $this->shouldStartSession($request);
+
+            AuthLoginLogger::info('Auth login session decision made.', array_merge(
+                $this->requestContext($request, $traceId),
+                $this->userContext($result['user']),
+                [
+                    'should_start_session' => $shouldStartSession,
+                    'has_session' => $request->hasSession(),
+                ],
+            ));
+
+            if ($shouldStartSession) {
+                $result['user']->loadMissing(['role.rolePermissions.module', 'customerDetail']);
+
+                $this->startSession(
+                    request: $request,
+                    user: $result['user'],
+                    plainTextToken: $result['token'],
+                    tokenExpiresAt: $result['expires_at'],
+                    traceId: $traceId,
+                );
+            }
+
+            $sessionExpiresAt = $shouldStartSession ? $this->sessionExpiresAt() : null;
+
+            AuthLoginLogger::info('Auth login completed.', array_merge(
+                $this->requestContext($request, $traceId),
+                $this->userContext($result['user']),
+                [
+                    'token_expires_at' => $result['expires_at'],
+                    'session_expires_at' => $sessionExpiresAt,
+                    'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                ],
+            ));
+
+            return [
+                'token' => $result['token'],
+                'token_type' => 'Bearer',
+                'expires_at' => $result['expires_at'],
+                'session_expires_at' => $sessionExpiresAt,
+                'user' => $result['user'],
+            ];
+        } catch (AuthenticationException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            AuthLoginLogger::error('Auth login crashed.', array_merge(
+                $this->requestContext($request, $traceId),
+                $this->loginDataContext($data),
+                $this->exceptionContext($exception),
+                [
+                    'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                ],
+            ));
+
+            throw $exception;
         }
-
-        $result = $this->issueToken($user, $data->tokenName);
-
-        $shouldStartSession = $this->shouldStartSession($request);
-
-        if ($shouldStartSession) {
-            $result['user']->loadMissing(['role.rolePermissions.module', 'customerDetail']);
-
-            $this->startSession(
-                request: $request,
-                user: $result['user'],
-                plainTextToken: $result['token'],
-                tokenExpiresAt: $result['expires_at'],
-            );
-        }
-
-        return [
-            'token' => $result['token'],
-            'token_type' => 'Bearer',
-            'expires_at' => $result['expires_at'],
-            'session_expires_at' => $shouldStartSession ? $this->sessionExpiresAt() : null,
-            'user' => $result['user'],
-        ];
     }
 
     public function register(RegisterData $data): User
@@ -144,9 +231,16 @@ class AuthService
     /**
      * @return array{token: string, expires_at: string|null, user: \App\Modules\Users\Models\User}
      */
-    private function issueToken(User $user, string $tokenName): array
+    private function issueToken(User $user, string $tokenName, string $traceId): array
     {
-        return DB::transaction(function () use ($user, $tokenName): array {
+        AuthLoginLogger::info('Auth token issue started.', [
+            'trace_id' => $traceId,
+            'user_id' => $user->id,
+            'token_name' => Str::limit($tokenName, 100),
+            'token_ttl_minutes' => (int) env('API_TOKEN_TTL_MINUTES', config('session.lifetime')),
+        ]);
+
+        return DB::transaction(function () use ($user, $tokenName, $traceId): array {
             $plainTextToken = Str::random(80);
             $expiresAt = now()->addMinutes((int) env('API_TOKEN_TTL_MINUTES', config('session.lifetime')));
 
@@ -159,6 +253,15 @@ class AuthService
 
             $authenticatedUser = $this->markUserLoggedIn($user);
 
+            AuthLoginLogger::info('Auth token issued.', [
+                'trace_id' => $traceId,
+                'user_id' => $authenticatedUser->id,
+                'api_token_id' => $apiToken->id,
+                'token_name' => Str::limit($tokenName, 100),
+                'expires_at' => $apiToken->expires_at?->toIso8601String(),
+                'last_login_at' => $authenticatedUser->last_login_at?->toIso8601String(),
+            ]);
+
             return [
                 'token' => $plainTextToken,
                 'expires_at' => $apiToken->expires_at?->toIso8601String(),
@@ -167,16 +270,43 @@ class AuthService
         });
     }
 
-    private function startSession(Request $request, User $user, string $plainTextToken, ?string $tokenExpiresAt): void
+    private function startSession(Request $request, User $user, string $plainTextToken, ?string $tokenExpiresAt, string $traceId): void
     {
         if (! $request->hasSession()) {
+            AuthLoginLogger::warning('Auth login session was requested but request has no session store.', array_merge(
+                $this->requestContext($request, $traceId),
+                $this->userContext($user),
+            ));
+
             return;
         }
+
+        AuthLoginLogger::info('Auth login session start requested.', array_merge(
+            $this->requestContext($request, $traceId),
+            $this->userContext($user),
+            [
+                'session_id_exists_before_regenerate' => $request->session()->isStarted()
+                    && (string) $request->session()->getId() !== '',
+                'token_expires_at' => $tokenExpiresAt,
+            ],
+        ));
 
         Auth::guard('web')->login($user);
         $request->session()->regenerate();
         $request->session()->put(self::SESSION_AUTH_TOKEN_KEY, $plainTextToken);
         $request->session()->put(self::SESSION_AUTH_TOKEN_EXPIRES_AT_KEY, $tokenExpiresAt);
+
+        AuthLoginLogger::info('Auth login session started.', array_merge(
+            $this->requestContext($request, $traceId),
+            $this->userContext($user),
+            [
+                'session_started' => $request->session()->isStarted(),
+                'session_id_present' => (string) $request->session()->getId() !== '',
+                'session_has_auth_token' => $request->session()->has(self::SESSION_AUTH_TOKEN_KEY),
+                'session_has_user_key' => $request->session()->has(Auth::guard('web')->getName()),
+                'token_expires_at' => $tokenExpiresAt,
+            ],
+        ));
     }
 
     private function markUserLoggedIn(User $user): User
@@ -196,5 +326,113 @@ class AuthService
     private function sessionExpiresAt(): string
     {
         return now()->addMinutes((int) config('session.lifetime'))->toIso8601String();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function requestContext(Request $request, string $traceId): array
+    {
+        return [
+            'trace_id' => $traceId,
+            'path' => $request->path(),
+            'method' => $request->method(),
+            'host' => $request->getHost(),
+            'scheme' => $request->getScheme(),
+            'is_secure' => $request->isSecure(),
+            'ip' => $request->ip(),
+            'content_type' => $request->headers->get('content-type'),
+            'accept' => $request->headers->get('accept'),
+            'origin' => $request->headers->get('origin'),
+            'referer' => $request->headers->get('referer'),
+            'user_agent' => Str::limit((string) $request->userAgent(), 200),
+            'token_only_header' => $request->headers->get('X-Trackpal-Token-Only'),
+            'session_driver' => config('session.driver'),
+            'session_cookie' => config('session.cookie'),
+            'session_domain' => config('session.domain'),
+            'session_secure' => config('session.secure'),
+            'session_same_site' => config('session.same_site'),
+            'session_lifetime' => config('session.lifetime'),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function loginDataContext(LoginData $data): array
+    {
+        return [
+            'login_type' => $data->loginType,
+            'identifier_type' => $data->loginType === 'customer' ? 'kvk' : 'email',
+            'has_email' => is_string($data->email) && trim($data->email) !== '',
+            'email_domain' => $this->emailDomain((string) $data->email),
+            'email_hash' => $this->hashedValue((string) $data->email),
+            'has_kvk' => is_string($data->kvk) && trim($data->kvk) !== '',
+            'kvk_hash' => $this->hashedValue($this->normalizedKvk((string) $data->kvk)),
+            'token_name' => Str::limit($data->tokenName, 100),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function userContext(?User $user): array
+    {
+        if (! $user) {
+            return [
+                'user_found' => false,
+            ];
+        }
+
+        $passwordInfo = password_get_info((string) $user->password);
+
+        return [
+            'user_found' => true,
+            'user_id' => $user->id,
+            'user_active' => (bool) $user->is_active,
+            'role_id' => $user->role_id,
+            'role_name' => $user->role?->name,
+            'role_active' => $user->role ? (bool) $user->role->is_active : null,
+            'customer_detail_id' => $user->customerDetail?->id,
+            'customer_detail_active' => $user->customerDetail ? (bool) $user->customerDetail->is_active : null,
+            'password_hash_present' => (string) $user->password !== '',
+            'password_hash_algo' => $passwordInfo['algoName'] ?? 'unknown',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function exceptionContext(Throwable $exception): array
+    {
+        return [
+            'exception_class' => $exception::class,
+            'exception_message' => $exception->getMessage(),
+            'exception_file' => $exception->getFile(),
+            'exception_line' => $exception->getLine(),
+        ];
+    }
+
+    private function emailDomain(string $email): ?string
+    {
+        $email = strtolower(trim($email));
+
+        if (! str_contains($email, '@')) {
+            return null;
+        }
+
+        return Str::afterLast($email, '@');
+    }
+
+    private function hashedValue(string $value): ?string
+    {
+        $value = trim($value);
+
+        return $value === '' ? null : hash('sha256', strtolower($value));
+    }
+
+    private function normalizedKvk(string $kvk): string
+    {
+        return strtolower((string) preg_replace('/[\s.-]+/', '', trim($kvk)));
     }
 }

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Modules\CustomerDetails\Models\CustomerDetail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -347,8 +348,48 @@ class AuthFeatureTest extends TestCase
         $this->assertDatabaseCount('sessions', 0);
     }
 
+    public function test_customer_can_login_with_kvk_number(): void
+    {
+        $user = $this->makeUser('customer', [
+            'email' => 'customer@example.com',
+            'password' => 'password123',
+        ]);
+
+        CustomerDetail::factory()->create([
+            'user_id' => $user->id,
+            'company_name' => 'Example Customer',
+            'kvk' => '1234-5678',
+            'is_active' => true,
+        ]);
+
+        $loginResponse = $this
+            ->withHeader('X-Trackpal-Token-Only', 'true')
+            ->postJson('/api/auth/login', [
+                'login_type' => 'customer',
+                'kvk' => '12345678',
+                'password' => 'password123',
+                'token_name' => 'feature-test',
+            ]);
+
+        $loginResponse
+            ->assertOk()
+            ->assertJsonPath('data.token_type', 'Bearer')
+            ->assertJsonPath('data.session_expires_at', null)
+            ->assertJsonPath('data.user.email', 'customer@example.com')
+            ->assertJsonPath('data.user.customer_detail.kvk_number', '1234-5678');
+
+        $this->assertNotNull($loginResponse->json('data.token'));
+        $this->assertDatabaseCount('api_tokens', 1);
+    }
+
     public function test_invalid_credentials_are_rejected(): void
     {
+        $authLogPath = storage_path('logs/laravel.log');
+
+        if (file_exists($authLogPath)) {
+            unlink($authLogPath);
+        }
+
         $user = $this->makeUser('admin', [
             'email' => 'admin@example.com',
             'password' => 'password123',
@@ -359,11 +400,20 @@ class AuthFeatureTest extends TestCase
             'password' => 'wrong-password',
         ])->assertUnauthorized();
 
-        $this->assertStringStartsWith('{"message":"Invalid credentials.","data":null,', $response->getContent());
+        $this->assertStringStartsWith('{"message":"Email or password are incorrect.","data":null,', $response->getContent());
 
         $this->assertDatabaseMissing('api_tokens', [
             'user_id' => $user->id,
         ]);
+
+        $this->assertFileExists($authLogPath);
+
+        $authLogContent = file_get_contents($authLogPath);
+
+        $this->assertIsString($authLogContent);
+        $this->assertStringContainsString('Auth login failed: password mismatch.', $authLogContent);
+        $this->assertStringNotContainsString('wrong-password', $authLogContent);
+        $this->assertStringNotContainsString($user->email, $authLogContent);
     }
 
     public function test_registration_requires_unique_email(): void

@@ -2,12 +2,14 @@
 
 use App\Modules\AuditLogs\Controllers\AuditLogController;
 use App\Modules\Auth\Controllers\AuthController;
+use App\Modules\CalendarNotes\Controllers\CalendarNoteController;
 use App\Modules\CustomerDetails\Controllers\CustomerDetailController;
 use App\Modules\GhostPalletReports\Controllers\GhostPalletReportController;
 use App\Modules\InvoiceItems\Controllers\InvoiceItemController;
 use App\Modules\Invoices\Controllers\InvoiceController;
 use App\Modules\Modules\Controllers\ModuleController;
 use App\Modules\Pallets\Controllers\PalletController;
+use App\Modules\Pallets\Controllers\PalletStatsController;
 use App\Modules\RolePermissions\Controllers\RolePermissionController;
 use App\Modules\Roles\Controllers\RoleController;
 use App\Modules\ServiceReports\Controllers\ServiceReportController;
@@ -36,6 +38,7 @@ Route::middleware('auth:web,api')->group(function (): void {
     Route::apiResource('customer_details', CustomerDetailController::class)
         ->parameters(['customer_details' => 'customerDetail']);
     Route::apiResource('statuses', StatusController::class);
+    Route::get('pallets/dashboard-stats', PalletStatsController::class);
     Route::apiResource('pallets', PalletController::class);
     Route::apiResource('audit_logs', AuditLogController::class)
         ->parameters(['audit_logs' => 'auditLog']);
@@ -43,6 +46,9 @@ Route::middleware('auth:web,api')->group(function (): void {
         ->parameters(['service_reports' => 'serviceReport']);
     Route::apiResource('ghost_pallet_reports', GhostPalletReportController::class)
         ->parameters(['ghost_pallet_reports' => 'ghostPalletReport']);
+    Route::get('calendar_notes/notify-candidates', [CalendarNoteController::class, 'notifyCandidates']);
+    Route::apiResource('calendar_notes', CalendarNoteController::class)
+        ->parameters(['calendar_notes' => 'calendarNote']);
     Route::apiResource('invoices', InvoiceController::class);
     Route::apiResource('invoice_items', InvoiceItemController::class)
         ->parameters(['invoice_items' => 'invoiceItem']);

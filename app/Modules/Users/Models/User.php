@@ -2,8 +2,9 @@
 
 namespace App\Modules\Users\Models;
 
-use App\Modules\Auth\Models\ApiToken;
 use App\Modules\AuditLogs\Models\AuditLog;
+use App\Modules\Auth\Models\ApiToken;
+use App\Modules\CalendarNotes\Models\CalendarNote;
 use App\Modules\CustomerDetails\Models\CustomerDetail;
 use App\Modules\GhostPalletReports\Models\GhostPalletReport;
 use App\Modules\Invoices\Models\Invoice;
@@ -13,7 +14,9 @@ use App\Modules\ServiceReports\Models\ServiceReport;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -58,7 +61,7 @@ class User extends Authenticatable
         return $this->belongsTo(Role::class);
     }
 
-    public function customerDetail(): \Illuminate\Database\Eloquent\Relations\HasOne
+    public function customerDetail(): HasOne
     {
         return $this->hasOne(CustomerDetail::class);
     }
@@ -91,6 +94,18 @@ class User extends Authenticatable
     public function invoices(): HasMany
     {
         return $this->hasMany(Invoice::class);
+    }
+
+    public function calendarNotesCreated(): HasMany
+    {
+        return $this->hasMany(CalendarNote::class, 'created_by_user_id');
+    }
+
+    public function calendarNotesNotified(): BelongsToMany
+    {
+        return $this->belongsToMany(CalendarNote::class, 'calendar_note_user')
+            ->withPivot('notified_at')
+            ->withTimestamps();
     }
 
     public function apiTokens(): HasMany

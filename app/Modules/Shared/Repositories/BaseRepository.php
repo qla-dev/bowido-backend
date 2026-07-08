@@ -13,9 +13,12 @@ abstract class BaseRepository
 {
     public function paginate(ListQueryData $queryData, ?User $actor = null): OffsetPaginationResult
     {
-        $query = $this->applyFilters($this->newQuery($actor), $queryData->filters);
+        $query = $this->applySearch(
+            $this->applyFilters($this->newQuery($actor), $queryData->filters),
+            $queryData->search,
+        );
         $total = (clone $query)->count();
-        $items = $this->applyOrdering($query)
+        $items = $this->applySort($query, $queryData)
             ->offset($queryData->offset)
             ->limit($queryData->limit)
             ->get();
@@ -99,6 +102,30 @@ abstract class BaseRepository
         return $query;
     }
 
+    protected function applySearch(Builder $query, ?string $search): Builder
+    {
+        return $query;
+    }
+
+    protected function applySort(Builder $query, ListQueryData $queryData): Builder
+    {
+        $allowedSorts = $this->allowedSorts();
+
+        if ($queryData->sortBy && array_key_exists($queryData->sortBy, $allowedSorts)) {
+            $sort = $allowedSorts[$queryData->sortBy];
+
+            if ($sort instanceof Closure) {
+                $sort($query, $queryData->sortDirection);
+
+                return $query;
+            }
+
+            return $query->orderBy($sort, $queryData->sortDirection);
+        }
+
+        return $this->applyOrdering($query);
+    }
+
     protected function applyOrdering(Builder $query): Builder
     {
         return $query->latest($this->defaultOrderColumn());
@@ -113,6 +140,14 @@ abstract class BaseRepository
      * @return array<int, string>
      */
     protected function relations(): array
+    {
+        return [];
+    }
+
+    /**
+     * @return array<string, string|Closure>
+     */
+    protected function allowedSorts(): array
     {
         return [];
     }
