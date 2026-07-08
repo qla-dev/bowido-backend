@@ -63,7 +63,11 @@ class AuthService
                     $this->loginDataContext($data),
                 ));
 
-                throw new AuthenticationException(__('Invalid credentials.'));
+                throw new AuthenticationException(
+                    $data->loginType === 'customer'
+                        ? 'No active customer account was found for that KVK number.'
+                        : 'No active user account was found for that email address.'
+                );
             }
 
             if (! $user->is_active) {
@@ -72,7 +76,7 @@ class AuthService
                     $this->userContext($user),
                 ));
 
-                throw new AuthenticationException(__('Invalid credentials.'));
+                throw new AuthenticationException('This account exists, but it is inactive.');
             }
 
             if (! Hash::check($data->password, $user->password)) {
@@ -81,7 +85,7 @@ class AuthService
                     $this->userContext($user),
                 ));
 
-                throw new AuthenticationException(__('Invalid credentials.'));
+                throw new AuthenticationException('The password is incorrect for this account.');
             }
 
             AuthLoginLogger::info('Auth login credentials accepted.', array_merge(
