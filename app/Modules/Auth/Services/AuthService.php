@@ -25,6 +25,8 @@ class AuthService
 
     private const SESSION_AUTH_TOKEN_EXPIRES_AT_KEY = 'auth_token_expires_at';
 
+    private const INVALID_LOGIN_MESSAGE = 'Email or password are incorrect.';
+
     public function __construct(
         private readonly UserRepository $userRepository,
         private readonly ApiTokenRepository $apiTokenRepository,
@@ -63,11 +65,7 @@ class AuthService
                     $this->loginDataContext($data),
                 ));
 
-                throw new AuthenticationException(
-                    $data->loginType === 'customer'
-                        ? 'No active customer account was found for that KVK number.'
-                        : 'No active user account was found for that email address.'
-                );
+                throw new AuthenticationException(self::INVALID_LOGIN_MESSAGE);
             }
 
             if (! $user->is_active) {
@@ -76,7 +74,7 @@ class AuthService
                     $this->userContext($user),
                 ));
 
-                throw new AuthenticationException('This account exists, but it is inactive.');
+                throw new AuthenticationException(self::INVALID_LOGIN_MESSAGE);
             }
 
             if (! Hash::check($data->password, $user->password)) {
@@ -85,7 +83,7 @@ class AuthService
                     $this->userContext($user),
                 ));
 
-                throw new AuthenticationException('The password is incorrect for this account.');
+                throw new AuthenticationException(self::INVALID_LOGIN_MESSAGE);
             }
 
             AuthLoginLogger::info('Auth login credentials accepted.', array_merge(

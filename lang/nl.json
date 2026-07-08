@@ -9,6 +9,7 @@
     "Authenticated user retrieved successfully.": "Geauthenticeerde gebruiker is succesvol opgehaald.",
     "Logout successful.": "Uitloggen is geslaagd.",
     "Invalid credentials.": "Ongeldige inloggegevens.",
+    "Email or password are incorrect.": "E-mail of wachtwoord is onjuist.",
     "Selected role is invalid or inactive.": "De geselecteerde rol is ongeldig of inactief.",
     "Users retrieved successfully.": "Gebruikers succesvol opgehaald.",
     "User created successfully.": "Gebruiker succesvol aangemaakt.",

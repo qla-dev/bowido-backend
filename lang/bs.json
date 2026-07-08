@@ -9,6 +9,7 @@
     "Authenticated user retrieved successfully.": "Autentificirani korisnik je uspješno dohvaćen.",
     "Logout successful.": "Odjava je uspješna.",
     "Invalid credentials.": "Neispravni pristupni podaci.",
+    "Email or password are incorrect.": "Email ili lozinka nisu ispravni.",
     "Selected role is invalid or inactive.": "Odabrana rola je neispravna ili neaktivna.",
     "Users retrieved successfully.": "Korisnici su uspješno dohvaćeni.",
     "User created successfully.": "Korisnik je uspješno kreiran.",

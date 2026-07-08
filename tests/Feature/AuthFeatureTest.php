@@ -400,7 +400,7 @@ class AuthFeatureTest extends TestCase
             'password' => 'wrong-password',
         ])->assertUnauthorized();
 
-        $this->assertStringStartsWith('{"message":"The password is incorrect for this account.","data":null,', $response->getContent());
+        $this->assertStringStartsWith('{"message":"Email or password are incorrect.","data":null,', $response->getContent());
 
         $this->assertDatabaseMissing('api_tokens', [
             'user_id' => $user->id,
