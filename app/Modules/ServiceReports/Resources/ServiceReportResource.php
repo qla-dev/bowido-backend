@@ -3,6 +3,9 @@
 namespace App\Modules\ServiceReports\Resources;
 
 use App\Modules\Pallets\Resources\PalletResource;
+use App\Modules\PalletPhotos\Enums\PalletPhotoType;
+use App\Modules\PalletPhotos\Models\PalletPhoto;
+use App\Modules\PalletPhotos\Resources\PalletPhotoResource;
 use App\Modules\Users\Resources\UserResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -27,7 +30,8 @@ class ServiceReportResource extends JsonResource
             'description' => $this->description,
             'problem_description' => $this->description,
             'resolution_note' => $this->resolution_note,
-            'image_path' => $this->imageUrl(),
+            'image_path' => $this->damagePhotoUrl() ?? $this->imageUrl(),
+            'photos' => PalletPhotoResource::collection($this->whenLoaded('photos')),
             'resolved_at' => $this->resolved_at,
             'metadata' => $this->metadata,
             'created_at' => $this->created_at,
@@ -49,5 +53,22 @@ class ServiceReportResource extends JsonResource
         }
 
         return asset('storage/'.$this->image_path);
+    }
+
+    private function damagePhotoUrl(): ?string
+    {
+        if (! $this->resource->relationLoaded('photos')) {
+            return null;
+        }
+
+        /** @var PalletPhoto|null $photo */
+        $photo = $this->resource->photos
+            ->where('type', PalletPhotoType::DamageReport)
+            ->sortByDesc('id')
+            ->first();
+
+        return $photo instanceof PalletPhoto
+            ? (new PalletPhotoResource($photo))->resolve(request())['url']
+            : null;
     }
 }

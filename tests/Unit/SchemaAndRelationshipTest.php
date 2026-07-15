@@ -43,7 +43,7 @@ class SchemaAndRelationshipTest extends TestCase
     {
         $user = $this->makeUser('customer');
         $customerDetail = CustomerDetail::factory()->create(['user_id' => $user->id]);
-        $status = Status::query()->where('slug', 'at_customer')->firstOrFail();
+        $status = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
         $pallet = Pallet::factory()->create([
             'user_id' => $user->id,
             'current_status_id' => $status->id,

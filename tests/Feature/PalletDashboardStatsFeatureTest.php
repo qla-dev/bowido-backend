@@ -20,9 +20,9 @@ class PalletDashboardStatsFeatureTest extends TestCase
             'user_id' => $customer->id,
             'grace_period_days' => 2,
         ]);
-        $warehouse = Status::query()->where('slug', 'bowido_warehouse')->firstOrFail();
-        $transport = Status::query()->where('slug', 'transport')->firstOrFail();
-        $atCustomer = Status::query()->where('slug', 'at_customer')->firstOrFail();
+        $warehouse = Status::query()->where('slug', 'bowido-nl')->firstOrFail();
+        $transport = Status::query()->where('slug', 'bih-nl-transport')->firstOrFail();
+        $atCustomer = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
 
         Pallet::factory()->create([
             'user_id' => $customer->id,
@@ -70,8 +70,8 @@ class PalletDashboardStatsFeatureTest extends TestCase
             'user_id' => $otherCustomer->id,
             'grace_period_days' => 1,
         ]);
-        $transport = Status::query()->where('slug', 'transport')->firstOrFail();
-        $atCustomer = Status::query()->where('slug', 'at_customer')->firstOrFail();
+        $transport = Status::query()->where('slug', 'bih-nl-transport')->firstOrFail();
+        $atCustomer = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
 
         Pallet::factory()->create([
             'user_id' => $customer->id,

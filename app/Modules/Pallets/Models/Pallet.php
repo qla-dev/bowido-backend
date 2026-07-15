@@ -4,6 +4,7 @@ namespace App\Modules\Pallets\Models;
 
 use App\Modules\AuditLogs\Models\AuditLog;
 use App\Modules\InvoiceItems\Models\InvoiceItem;
+use App\Modules\PalletPhotos\Models\PalletPhoto;
 use App\Modules\ServiceReports\Models\ServiceReport;
 use App\Modules\Statuses\Models\Status;
 use App\Modules\Users\Models\User;
@@ -75,6 +76,11 @@ class Pallet extends Model
     public function serviceReports(): HasMany
     {
         return $this->hasMany(ServiceReport::class);
+    }
+
+    public function photos(): HasMany
+    {
+        return $this->hasMany(PalletPhoto::class);
     }
 
     public function invoiceItems(): HasMany

@@ -3,6 +3,8 @@
 namespace App\Modules\ServiceReports\Services;
 
 use App\Modules\Pallets\Repositories\PalletRepository;
+use App\Modules\PalletPhotos\Enums\PalletPhotoType;
+use App\Modules\PalletPhotos\Services\PalletPhotoService;
 use App\Modules\ServiceReports\DTOs\ServiceReportData;
 use App\Modules\ServiceReports\Models\ServiceReport;
 use App\Modules\ServiceReports\Repositories\ServiceReportRepository;
@@ -18,6 +20,7 @@ class ServiceReportService extends BaseCrudService
     public function __construct(
         private readonly ServiceReportRepository $serviceReportRepository,
         private readonly PalletRepository $palletRepository,
+        private readonly PalletPhotoService $palletPhotoService,
     ) {
         parent::__construct($serviceReportRepository);
     }
@@ -30,7 +33,7 @@ class ServiceReportService extends BaseCrudService
             throw new AuthorizationException(__('You are not allowed to create a report for this pallet.'));
         }
 
-        return DB::transaction(function () use ($data, $actor): ServiceReport {
+        return DB::transaction(function () use ($data, $actor, $pallet): ServiceReport {
             $attributes = [
                 'pallet_id' => $data->palletId,
                 'reported_by_user_id' => $actor->id,
@@ -38,14 +41,24 @@ class ServiceReportService extends BaseCrudService
                 'severity' => $data->severity,
                 'issue_type' => $data->issueType,
                 'description' => $data->description,
-                'image_path' => $data->image?->store('service-reports', 'public') ?? $data->imagePath,
+                'image_path' => $data->imagePath,
                 'metadata' => $data->metadata,
             ];
 
             /** @var ServiceReport $serviceReport */
             $serviceReport = $this->serviceReportRepository->create($attributes);
 
-            return $serviceReport->load(['pallet.user.role', 'pallet.currentStatus', 'reportedByUser.role', 'resolvedByUser.role']);
+            if ($data->image !== null) {
+                $this->palletPhotoService->store(
+                    pallet: $pallet,
+                    actor: $actor,
+                    image: $data->image,
+                    type: PalletPhotoType::DamageReport,
+                    serviceReport: $serviceReport,
+                );
+            }
+
+            return $serviceReport->load(['photos', 'pallet.user.role', 'pallet.currentStatus', 'reportedByUser.role', 'resolvedByUser.role']);
         });
     }
 
@@ -72,7 +85,13 @@ class ServiceReportService extends BaseCrudService
             ], static fn ($value): bool => $value !== null && $value !== '');
 
             if ($data->image !== null) {
-                $attributes['image_path'] = $data->image->store('service-reports', 'public');
+                $this->palletPhotoService->store(
+                    pallet: $lockedServiceReport->pallet,
+                    actor: $actor,
+                    image: $data->image,
+                    type: PalletPhotoType::DamageReport,
+                    serviceReport: $lockedServiceReport,
+                );
             } elseif ($data->imagePath !== null) {
                 $attributes['image_path'] = $data->imagePath;
             }
@@ -89,7 +108,7 @@ class ServiceReportService extends BaseCrudService
             /** @var ServiceReport $updatedServiceReport */
             $updatedServiceReport = $this->serviceReportRepository->update($lockedServiceReport, $attributes);
 
-            return $updatedServiceReport->load(['pallet.user.role', 'pallet.currentStatus', 'reportedByUser.role', 'resolvedByUser.role']);
+            return $updatedServiceReport->load(['photos', 'pallet.user.role', 'pallet.currentStatus', 'reportedByUser.role', 'resolvedByUser.role']);
         });
     }
 }
