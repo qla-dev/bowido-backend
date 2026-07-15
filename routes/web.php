@@ -4,7 +4,15 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 
-$frontendDist = static fn () => realpath(base_path('../frontend/dist'));
+$frontendDist = static function () {
+    $frontendPath = (string) config('frontend.path');
+    $isAbsolutePath = preg_match('/^(?:[A-Za-z]:[\\\\\/]|\\\\\\\\|\/)/', $frontendPath) === 1;
+    $resolvedFrontendPath = realpath($isAbsolutePath ? $frontendPath : base_path($frontendPath));
+
+    return $resolvedFrontendPath === false
+        ? false
+        : realpath($resolvedFrontendPath.DIRECTORY_SEPARATOR.'dist');
+};
 
 $serveFrontendFile = static function (string $relativePath) use ($frontendDist) {
     $frontendDist = $frontendDist();
@@ -115,7 +123,7 @@ Route::any('/{path?}', function (Request $request, ?string $path = null) use ($p
 
     if ($path !== null && $path !== '') {
         $normalizedPath = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path);
-        $frontendDist = realpath(base_path('../frontend/dist'));
+        $frontendDist = $frontendDist();
         $requestedFile = $frontendDist === false ? false : realpath($frontendDist.DIRECTORY_SEPARATOR.$normalizedPath);
 
         if ($requestedFile !== false && is_file($requestedFile)) {
