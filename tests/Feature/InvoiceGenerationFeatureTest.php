@@ -28,8 +28,8 @@ class InvoiceGenerationFeatureTest extends TestCase
             'is_active' => true,
         ]);
 
-        $atCustomer = Status::query()->where('slug', 'at_customer')->firstOrFail();
-        $pendingReturn = Status::query()->where('slug', 'pending_return')->firstOrFail();
+        $atCustomer = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $pendingReturn = Status::query()->where('slug', 'ophalen-klant')->firstOrFail();
 
         $pallet = Pallet::factory()->create([
             'user_id' => $customer->id,

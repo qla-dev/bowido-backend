@@ -8,6 +8,7 @@ use App\Modules\GhostPalletReports\Controllers\GhostPalletReportController;
 use App\Modules\InvoiceItems\Controllers\InvoiceItemController;
 use App\Modules\Invoices\Controllers\InvoiceController;
 use App\Modules\Modules\Controllers\ModuleController;
+use App\Modules\PalletPhotos\Controllers\PalletPhotoController;
 use App\Modules\Pallets\Controllers\PalletController;
 use App\Modules\Pallets\Controllers\PalletStatsController;
 use App\Modules\RolePermissions\Controllers\RolePermissionController;
@@ -20,6 +21,10 @@ use Illuminate\Support\Facades\Route;
 Route::get('health', fn () => response()->json([
     'status' => 'ok',
 ]));
+
+Route::get('pallet-photos/{palletPhoto}/file', [PalletPhotoController::class, 'file'])
+    ->middleware('signed')
+    ->name('pallet-photos.file');
 
 Route::prefix('auth')->group(function (): void {
     Route::get('login-options', [AuthController::class, 'loginOptions']);
@@ -40,6 +45,8 @@ Route::middleware('auth:web,api')->group(function (): void {
     Route::apiResource('statuses', StatusController::class);
     Route::get('pallets/dashboard-stats', PalletStatsController::class);
     Route::apiResource('pallets', PalletController::class);
+    Route::post('pallets/{pallet}/photos', [PalletPhotoController::class, 'store']);
+    Route::get('customer_details/{customerDetail}/pallet-photos', [PalletPhotoController::class, 'forCustomer']);
     Route::apiResource('audit_logs', AuditLogController::class)
         ->parameters(['audit_logs' => 'auditLog']);
     Route::apiResource('service_reports', ServiceReportController::class)

@@ -18,7 +18,7 @@ class GhostPalletPairingFeatureTest extends TestCase
     {
         $admin = $this->makeUser('admin');
         $customer = $this->makeUser('customer');
-        $status = Status::query()->where('slug', 'at_customer')->firstOrFail();
+        $status = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
         $pallet = Pallet::factory()->create([
             'user_id' => $customer->id,
             'current_status_id' => $status->id,

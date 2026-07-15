@@ -18,8 +18,8 @@ class PalletLifecycleFeatureTest extends TestCase
         $admin = $this->makeUser('admin');
         $customerA = $this->makeUser('customer');
         $customerB = $this->makeUser('customer');
-        $warehouse = Status::query()->where('slug', 'bowido_warehouse')->firstOrFail();
-        $atCustomer = Status::query()->where('slug', 'at_customer')->firstOrFail();
+        $warehouse = Status::query()->where('slug', 'bowido-nl')->firstOrFail();
+        $atCustomer = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
 
         $createResponse = $this->actingAs($admin, 'api')->postJson('/api/pallets', [
             'user_id' => $customerA->id,

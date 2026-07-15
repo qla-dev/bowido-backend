@@ -10,9 +10,8 @@ use Illuminate\Support\Carbon;
 class PalletDashboardStatsService
 {
     private const TRANSPORT_STATUS_SLUGS = [
-        'transport',
-        'transport_bih_nl',
-        'transport_nl_bih',
+        'bih-nl-transport',
+        'nl-bih-transport',
     ];
 
     /**

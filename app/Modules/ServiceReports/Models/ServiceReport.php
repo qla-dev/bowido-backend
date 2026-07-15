@@ -3,11 +3,13 @@
 namespace App\Modules\ServiceReports\Models;
 
 use App\Modules\Pallets\Models\Pallet;
+use App\Modules\PalletPhotos\Models\PalletPhoto;
 use App\Modules\Users\Models\User;
 use Database\Factories\ServiceReportFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ServiceReport extends Model
 {
@@ -54,5 +56,10 @@ class ServiceReport extends Model
     public function resolvedByUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'resolved_by_user_id');
+    }
+
+    public function photos(): HasMany
+    {
+        return $this->hasMany(PalletPhoto::class);
     }
 }

@@ -25,7 +25,7 @@ class ServiceReportRepository extends BaseRepository
 
     protected function relations(): array
     {
-        return [];
+        return ['photos'];
     }
 
     protected function scopeForActor(Builder $query, ?User $actor): Builder
