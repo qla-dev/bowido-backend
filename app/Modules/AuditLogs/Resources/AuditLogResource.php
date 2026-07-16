@@ -3,10 +3,12 @@
 namespace App\Modules\AuditLogs\Resources;
 
 use App\Modules\Pallets\Resources\PalletResource;
+use App\Modules\PalletPhotos\Models\PalletPhoto;
 use App\Modules\Statuses\Resources\StatusResource;
 use App\Modules\Users\Resources\UserResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\URL;
 
 class AuditLogResource extends JsonResource
 {
@@ -17,6 +19,16 @@ class AuditLogResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $statusChangePhoto = $this->pallet_id && $this->old_status_id && $this->new_status_id
+            ? PalletPhoto::query()
+                ->where('pallet_id', $this->pallet_id)
+                ->where('old_status_id', $this->old_status_id)
+                ->where('new_status_id', $this->new_status_id)
+                ->where('uploaded_by_user_id', $this->made_by_user_id)
+                ->latest()
+                ->first()
+            : null;
+
         return [
             'id' => $this->id,
             'pallet_id' => $this->pallet_id,
@@ -38,6 +50,9 @@ class AuditLogResource extends JsonResource
             'old_qr_code' => $this->old_qr_code,
             'new_qr_code' => $this->new_qr_code,
             'context' => $this->context,
+            'status_change_photo_url' => $statusChangePhoto?->expires_at?->isFuture()
+                ? URL::temporarySignedRoute('pallet-photos.file', now()->addMinutes(config('pallet-photos.temporary_url_minutes')), ['palletPhoto' => $statusChangePhoto->id])
+                : null,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             'pallet' => new PalletResource($this->whenLoaded('pallet')),

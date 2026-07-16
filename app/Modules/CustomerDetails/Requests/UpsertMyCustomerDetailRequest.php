@@ -18,7 +18,7 @@ class UpsertMyCustomerDetailRequest extends ApiFormRequest
             'billing_email' => ['required', 'email', 'max:255'],
             'street' => ['required', 'string', 'max:255'],
             'postal_code' => ['required', 'string', 'max:32'],
-            'warehouse_scope' => ['required', Rule::in(['warehouse_nl', 'warehouse_bih'])],
+            'warehouse_scope' => ['nullable', Rule::in(['warehouse_nl', 'warehouse_bih'])],
         ];
     }
 }
