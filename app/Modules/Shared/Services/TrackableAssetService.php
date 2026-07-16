@@ -8,9 +8,7 @@ use App\Modules\Users\Models\User;
 
 class TrackableAssetService
 {
-    public function __construct(private readonly AuditTrailService $auditTrailService)
-    {
-    }
+    public function __construct(private readonly AuditTrailService $auditTrailService) {}
 
     /**
      * @param  array<string, mixed>  $attributes
@@ -51,14 +49,14 @@ class TrackableAssetService
 
         if (
             array_key_exists('user_id', $attributes)
-            && (int) $originalAttributes['user_id'] !== (int) $attributes['user_id']
+            && $this->nullableInt($originalAttributes['user_id']) !== $this->nullableInt($attributes['user_id'])
         ) {
             $this->auditTrailService->record(
                 palletId: $pallet->id,
                 madeByUserId: $actor->id,
                 eventType: AuditEventType::ClientChanged,
-                oldClientId: (int) $originalAttributes['user_id'],
-                newClientId: (int) $attributes['user_id'],
+                oldClientId: $this->nullableInt($originalAttributes['user_id']),
+                newClientId: $this->nullableInt($attributes['user_id']),
                 note: $attributes['notes'] ?? null,
             );
         }
@@ -90,5 +88,10 @@ class TrackableAssetService
                 note: $attributes['notes'] ?? null,
             );
         }
+    }
+
+    private function nullableInt(mixed $value): ?int
+    {
+        return $value === null || $value === '' ? null : (int) $value;
     }
 }

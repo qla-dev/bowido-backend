@@ -21,6 +21,7 @@ class PalletResource extends JsonResource
             'user_id' => $this->user_id,
             'current_status_id' => $this->current_status_id,
             'current_status_name' => $this->whenLoaded('currentStatus', fn (): ?string => $this->currentStatus?->name),
+            'current_status_slug' => $this->whenLoaded('currentStatus', fn (): ?string => $this->currentStatus?->slug),
             'client_name' => $this->whenLoaded('user', fn (): ?string => $this->user?->customerDetail?->company_name ?? $this->user?->name),
             'type' => $this->type ?? $this->asset_type,
             'asset_type' => $this->asset_type,

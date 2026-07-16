@@ -8,6 +8,7 @@ use App\Modules\GhostPalletReports\Controllers\GhostPalletReportController;
 use App\Modules\InvoiceItems\Controllers\InvoiceItemController;
 use App\Modules\Invoices\Controllers\InvoiceController;
 use App\Modules\Modules\Controllers\ModuleController;
+use App\Modules\PalletPhotos\Controllers\GalleryController;
 use App\Modules\PalletPhotos\Controllers\PalletPhotoController;
 use App\Modules\Pallets\Controllers\PalletController;
 use App\Modules\Pallets\Controllers\PalletStatsController;
@@ -22,10 +23,6 @@ Route::get('health', fn () => response()->json([
     'status' => 'ok',
 ]));
 
-Route::get('pallet-photos/{palletPhoto}/file', [PalletPhotoController::class, 'file'])
-    ->middleware('signed')
-    ->name('pallet-photos.file');
-
 Route::prefix('auth')->group(function (): void {
     Route::get('login-options', [AuthController::class, 'loginOptions']);
     Route::post('login', [AuthController::class, 'login']);
@@ -38,12 +35,19 @@ Route::prefix('auth')->group(function (): void {
 });
 
 Route::middleware('auth:web,api')->group(function (): void {
+    Route::get('gallery', GalleryController::class);
+    Route::get('pallet-photos/{palletPhoto}/file', [PalletPhotoController::class, 'file'])
+        ->middleware('signed')
+        ->name('pallet-photos.file');
+    Route::get('customer-details/me', [CustomerDetailController::class, 'me']);
+    Route::put('customer-details/me', [CustomerDetailController::class, 'upsertMe']);
     Route::apiResource('roles', RoleController::class);
     Route::apiResource('users', UserController::class);
     Route::apiResource('customer_details', CustomerDetailController::class)
         ->parameters(['customer_details' => 'customerDetail']);
     Route::apiResource('statuses', StatusController::class);
     Route::get('pallets/dashboard-stats', PalletStatsController::class);
+    Route::post('pallets/{pallet}/overdue-invoice/send', [InvoiceController::class, 'sendOverduePalletInvoice']);
     Route::apiResource('pallets', PalletController::class);
     Route::post('pallets/{pallet}/photos', [PalletPhotoController::class, 'store']);
     Route::get('customer_details/{customerDetail}/pallet-photos', [PalletPhotoController::class, 'forCustomer']);
@@ -57,6 +61,9 @@ Route::middleware('auth:web,api')->group(function (): void {
     Route::apiResource('calendar_notes', CalendarNoteController::class)
         ->parameters(['calendar_notes' => 'calendarNote']);
     Route::apiResource('invoices', InvoiceController::class);
+    Route::get('invoices/{invoice}/preview', [InvoiceController::class, 'preview']);
+    Route::get('invoices/{invoice}/download', [InvoiceController::class, 'download']);
+    Route::post('invoices/{invoice}/send', [InvoiceController::class, 'send']);
     Route::apiResource('invoice_items', InvoiceItemController::class)
         ->parameters(['invoice_items' => 'invoiceItem']);
     Route::apiResource('modules', ModuleController::class);

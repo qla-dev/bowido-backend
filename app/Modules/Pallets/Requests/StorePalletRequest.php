@@ -9,7 +9,7 @@ class StorePalletRequest extends ApiFormRequest
     public function rules(): array
     {
         return [
-            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'user_id' => ['nullable', 'integer', 'exists:users,id'],
             'current_status_id' => ['required', 'integer', 'exists:statuses,id'],
             'type' => ['sometimes', 'string', 'max:255'],
             'asset_type' => ['sometimes', 'string', 'max:255'],

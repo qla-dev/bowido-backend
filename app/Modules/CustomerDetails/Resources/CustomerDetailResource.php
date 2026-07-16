@@ -26,6 +26,9 @@ class CustomerDetailResource extends JsonResource
             'kvk_number' => $this->kvk,
             'billing_email' => $this->billing_email,
             'fixed_phone' => $this->fixed_phone,
+            'street' => $this->street,
+            'postal_code' => $this->postal_code,
+            'warehouse_scope' => $this->warehouse_scope,
             'billing_address' => $this->billing_address,
             'delivery_address' => $this->delivery_address,
             'warehouse_addresses' => array_values(array_filter([

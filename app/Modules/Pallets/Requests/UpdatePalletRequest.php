@@ -12,7 +12,7 @@ class UpdatePalletRequest extends ApiFormRequest
         $palletId = $this->route('pallet')?->id;
 
         return [
-            'user_id' => ['sometimes', 'integer', 'exists:users,id'],
+            'user_id' => ['sometimes', 'nullable', 'integer', 'exists:users,id'],
             'current_status_id' => ['sometimes', 'integer', 'exists:statuses,id'],
             'type' => ['sometimes', 'string', 'max:255'],
             'asset_type' => ['sometimes', 'string', 'max:255'],

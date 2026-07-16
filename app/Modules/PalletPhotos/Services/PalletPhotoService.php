@@ -10,8 +10,9 @@ use App\Modules\Shared\DTOs\ListQueryData;
 use App\Modules\Shared\Support\OffsetPaginationResult;
 use App\Modules\Statuses\Models\Status;
 use App\Modules\Users\Models\User;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 class PalletPhotoService
 {
@@ -37,6 +38,7 @@ class PalletPhotoService
                 'service_report_id' => $serviceReport?->id,
                 'uploaded_by_user_id' => $actor->id,
                 'type' => $type,
+                'warehouse_scope' => $this->resolveWarehouseScope($pallet, $oldStatusId, $newStatusId),
                 'disk' => $disk,
                 'path' => $path,
                 'original_name' => $image->getClientOriginalName(),
@@ -49,6 +51,112 @@ class PalletPhotoService
 
             throw $exception;
         }
+    }
+
+    public function gallery(User $actor, ListQueryData $queryData, array $filters = []): OffsetPaginationResult
+    {
+        $query = PalletPhoto::query()->with([
+            'pallet.user.customerDetail',
+            'pallet.currentStatus',
+            'oldStatus',
+            'newStatus',
+            'uploadedByUser.role',
+            'serviceReport',
+        ]);
+
+        if (! $actor->isAdmin()) {
+            $scope = $actor->modulePermissionScope('image_gallery');
+            if ($scope !== 'all') {
+                $query->where('warehouse_scope', $scope);
+            }
+        }
+
+        foreach (['pallet_id', 'client_id', 'type', 'warehouse_scope', 'uploaded_by_user_id'] as $filter) {
+            if (isset($filters[$filter]) && $filters[$filter] !== '') {
+                $query->where($filter, $filters[$filter]);
+            }
+        }
+
+        if (! empty($filters['date_from'])) {
+            $query->whereDate('created_at', '>=', $filters['date_from']);
+        }
+
+        if (! empty($filters['date_to'])) {
+            $query->whereDate('created_at', '<=', $filters['date_to']);
+        }
+
+        if (! empty($filters['search'])) {
+            $search = '%'.mb_strtolower(trim((string) $filters['search'])).'%';
+            $query->where(function (Builder $searchQuery) use ($search): void {
+                $searchQuery
+                    ->whereHas('pallet', function (Builder $palletQuery) use ($search): void {
+                        $palletQuery->where(function (Builder $palletSearchQuery) use ($search): void {
+                            $palletSearchQuery
+                                ->whereRaw('LOWER(qr_code) LIKE ?', [$search])
+                                ->orWhereRaw('LOWER(pallet_name) LIKE ?', [$search])
+                                ->orWhereRaw('LOWER(reference_code) LIKE ?', [$search]);
+                        });
+                    })
+                    ->orWhereHas('uploadedByUser', function (Builder $userQuery) use ($search): void {
+                        $userQuery
+                            ->whereRaw('LOWER(name) LIKE ?', [$search])
+                            ->orWhereRaw('LOWER(email) LIKE ?', [$search]);
+                    })
+                    ->orWhereHas('pallet.user.customerDetail', function (Builder $customerQuery) use ($search): void {
+                        $customerQuery
+                            ->whereRaw('LOWER(company_name) LIKE ?', [$search])
+                            ->orWhereRaw('LOWER(kvk) LIKE ?', [$search]);
+                    });
+            });
+        }
+
+        $total = (clone $query)->count();
+        $items = $query->latest()->offset($queryData->offset)->limit($queryData->limit)->get();
+
+        return new OffsetPaginationResult($items, $total, $queryData->limit, $queryData->offset);
+    }
+
+    public function canAccess(User $actor, PalletPhoto $photo): bool
+    {
+        if ($actor->isAdmin()) {
+            return true;
+        }
+
+        if ($actor->isCustomer()) {
+            return $photo->client_id === $actor->id || $photo->pallet?->user_id === $actor->id;
+        }
+
+        $scope = $actor->modulePermissionScope('image_gallery');
+
+        return $actor->hasModulePermission('image_gallery', 'view')
+            && ($scope === 'all' || (in_array($scope, ['warehouse_nl', 'warehouse_bih'], true) && $photo->warehouse_scope === $scope));
+    }
+
+    private function resolveWarehouseScope(Pallet $pallet, ?int $oldStatusId, ?int $newStatusId): ?string
+    {
+        $slugs = Status::query()
+            ->whereIn('id', array_values(array_filter([$oldStatusId, $newStatusId, $pallet->current_status_id])))
+            ->pluck('slug');
+
+        if ($slugs->contains('bowido-nl')) {
+            return 'warehouse_nl';
+        }
+
+        if ($slugs->contains('bowido-bih')) {
+            return 'warehouse_bih';
+        }
+
+        $location = strtolower((string) $pallet->current_location);
+
+        if (str_contains($location, 'nl') || str_contains($location, 'netherland')) {
+            return 'warehouse_nl';
+        }
+
+        if (str_contains($location, 'bih') || str_contains($location, 'bosn')) {
+            return 'warehouse_bih';
+        }
+
+        return $pallet->user?->customerDetail?->warehouse_scope;
     }
 
     public function delete(PalletPhoto $photo): void

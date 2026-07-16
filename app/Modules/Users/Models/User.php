@@ -144,6 +144,19 @@ class User extends Authenticatable
         };
     }
 
+    public function modulePermissionScope(string $moduleSlug): ?string
+    {
+        if ($this->isAdmin()) {
+            return 'all';
+        }
+
+        $this->loadMissing('role.rolePermissions.module');
+
+        return $this->role?->rolePermissions
+            ->first(fn ($item) => $item->module?->slug === $moduleSlug)
+            ?->scope;
+    }
+
     public function isAdmin(): bool
     {
         return strtolower((string) $this->role?->name) === 'admin';

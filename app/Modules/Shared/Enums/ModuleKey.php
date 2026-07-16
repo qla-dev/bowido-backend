@@ -16,4 +16,5 @@ enum ModuleKey: string
     case Services = 'services';
     case Users = 'users';
     case GhostPalletReports = 'ghost_pallet_reports';
+    case ImageGallery = 'image_gallery';
 }

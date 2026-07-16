@@ -123,6 +123,14 @@ class ReferenceDataSeeder extends Seeder
                 'is_active' => true,
                 'sort_order' => 80,
             ],
+            [
+                'name' => 'Service',
+                'slug' => 'service',
+                'description' => 'Pallet is in Bowido service or repair.',
+                'is_billable' => false,
+                'is_active' => true,
+                'sort_order' => 90,
+            ],
         ])->each(function (array $status): void {
             Status::query()->updateOrCreate(
                 ['slug' => $status['slug']],
@@ -139,15 +147,9 @@ class ReferenceDataSeeder extends Seeder
     {
         foreach ($roles as $roleName => $role) {
             $permissions = $this->permissionsForRole($roleName, $modules);
-            $moduleIds = array_column($permissions, 'module_id');
-
-            RolePermission::query()
-                ->where('role_id', $role->id)
-                ->whereNotIn('module_id', $moduleIds)
-                ->delete();
 
             foreach ($permissions as $permission) {
-                RolePermission::query()->updateOrCreate(
+                RolePermission::query()->firstOrCreate(
                     ['role_id' => $role->id, 'module_id' => $permission['module_id']],
                     [
                         'can_list' => $permission['can_list'],
@@ -347,6 +349,12 @@ class ReferenceDataSeeder extends Seeder
                 'description' => 'Ghost pallet reporting and pairing.',
                 'legacy_slugs' => [],
             ],
+            [
+                'slug' => ModuleKey::ImageGallery->value,
+                'name' => 'Image Gallery',
+                'description' => 'Secure pallet image gallery with warehouse visibility scopes.',
+                'legacy_slugs' => [],
+            ],
         ];
     }
 
@@ -370,7 +378,7 @@ class ReferenceDataSeeder extends Seeder
 
             if (! $target instanceof Module) {
                 /** @var Module $target */
-                $target = new Module();
+                $target = new Module;
                 $target->slug = $definition['slug'];
             }
 

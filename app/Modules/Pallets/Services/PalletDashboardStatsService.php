@@ -3,6 +3,7 @@
 namespace App\Modules\Pallets\Services;
 
 use App\Modules\Pallets\Models\Pallet;
+use App\Modules\Pallets\Rules\PalletCustomerAssignmentRule;
 use App\Modules\Users\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -81,7 +82,12 @@ class PalletDashboardStatsService
         $query = Pallet::query();
 
         if ($actor?->isCustomer()) {
-            $query->where('user_id', $actor->id);
+            $query
+                ->where('user_id', $actor->id)
+                ->whereHas('currentStatus', fn (Builder $statusQuery) => $statusQuery->whereIn(
+                    'slug',
+                    PalletCustomerAssignmentRule::ALLOWED_STATUS_SLUGS,
+                ));
         }
 
         return $query;

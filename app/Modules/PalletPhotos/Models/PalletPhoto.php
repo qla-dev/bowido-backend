@@ -20,6 +20,7 @@ class PalletPhoto extends Model
         'service_report_id',
         'uploaded_by_user_id',
         'type',
+        'warehouse_scope',
         'disk',
         'path',
         'original_name',

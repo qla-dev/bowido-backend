@@ -5,6 +5,7 @@ namespace App\Modules\Pallets\Repositories;
 use App\Modules\CustomerDetails\Models\CustomerDetail;
 use App\Modules\GhostPalletReports\Models\GhostPalletReport;
 use App\Modules\Pallets\Models\Pallet;
+use App\Modules\Pallets\Rules\PalletCustomerAssignmentRule;
 use App\Modules\Shared\Repositories\BaseRepository;
 use App\Modules\Statuses\Models\Status;
 use App\Modules\Users\Models\User;
@@ -35,7 +36,12 @@ class PalletRepository extends BaseRepository
     protected function scopeForActor(Builder $query, ?User $actor): Builder
     {
         if ($actor?->isCustomer()) {
-            $query->where('user_id', $actor->id);
+            $query
+                ->where('user_id', $actor->id)
+                ->whereHas('currentStatus', fn (Builder $statusQuery) => $statusQuery->whereIn(
+                    'slug',
+                    PalletCustomerAssignmentRule::ALLOWED_STATUS_SLUGS,
+                ));
         }
 
         return $query;
@@ -149,6 +155,6 @@ class PalletRepository extends BaseRepository
 
     protected function model(): Model
     {
-        return new Pallet();
+        return new Pallet;
     }
 }

@@ -12,8 +12,7 @@ readonly class RoleData
         public bool $isActive,
         public ?array $moduleIds,
         public ?array $rolePermissions,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>  $attributes
@@ -73,6 +72,7 @@ readonly class RoleData
                 'can_create' => (bool) ($permission['can_create'] ?? false),
                 'can_update' => (bool) ($permission['can_update'] ?? false),
                 'can_delete' => (bool) ($permission['can_delete'] ?? false),
+                'scope' => isset($permission['scope']) ? (string) $permission['scope'] : null,
             ];
         }
 

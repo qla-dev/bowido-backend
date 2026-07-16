@@ -24,6 +24,7 @@ class RolePermissionResource extends JsonResource
             'can_create' => $this->can_create,
             'can_update' => $this->can_update,
             'can_delete' => $this->can_delete,
+            'scope' => $this->scope,
             'role' => new RoleResource($this->whenLoaded('role')),
             'module' => $this->whenLoaded('module', fn (): array => [
                 'id' => $this->module->id,

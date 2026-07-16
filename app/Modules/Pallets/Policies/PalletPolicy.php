@@ -3,6 +3,7 @@
 namespace App\Modules\Pallets\Policies;
 
 use App\Modules\Pallets\Models\Pallet;
+use App\Modules\Pallets\Rules\PalletCustomerAssignmentRule;
 use App\Modules\Shared\Enums\ModuleKey;
 use App\Modules\Shared\Policies\BaseModulePolicy;
 use App\Modules\Users\Models\User;
@@ -13,7 +14,9 @@ class PalletPolicy extends BaseModulePolicy
     {
         /** @var Pallet $model */
         if ($user->isCustomer()) {
-            return parent::view($user, $model) && $model->user_id === $user->id;
+            return parent::view($user, $model)
+                && $model->user_id === $user->id
+                && app(PalletCustomerAssignmentRule::class)->statusAllowsCustomer($model->currentStatus);
         }
 
         return parent::view($user, $model);

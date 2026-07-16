@@ -6,4 +6,5 @@ enum PalletPhotoType: string
 {
     case Scan = 'scan';
     case DamageReport = 'damage_report';
+    case ServiceReport = 'service_report';
 }
