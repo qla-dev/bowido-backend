@@ -7,17 +7,17 @@ use App\Modules\CustomerDetails\Models\CustomerDetail;
 use App\Modules\CustomerDetails\Requests\ListCustomerDetailsRequest;
 use App\Modules\CustomerDetails\Requests\StoreCustomerDetailRequest;
 use App\Modules\CustomerDetails\Requests\UpdateCustomerDetailRequest;
+use App\Modules\CustomerDetails\Requests\UpsertMyCustomerDetailRequest;
 use App\Modules\CustomerDetails\Resources\CustomerDetailResource;
 use App\Modules\CustomerDetails\Services\CustomerDetailService;
 use App\Modules\Shared\DTOs\ListQueryData;
 use App\Modules\Shared\Http\Controllers\ApiController;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 
 class CustomerDetailController extends ApiController
 {
-    public function __construct(private readonly CustomerDetailService $customerDetailService)
-    {
-    }
+    public function __construct(private readonly CustomerDetailService $customerDetailService) {}
 
     public function index(ListCustomerDetailsRequest $request): JsonResponse
     {
@@ -28,6 +28,51 @@ class CustomerDetailController extends ApiController
             CustomerDetailResource::class,
             __('Customer details retrieved successfully.'),
         );
+    }
+
+    public function me(): JsonResponse
+    {
+        $user = request()->user()->load('customerDetail.user.role');
+
+        abort_unless($user->isCustomer(), 403);
+
+        return $this->success(
+            $user->customerDetail
+                ? (new CustomerDetailResource($user->customerDetail))->resolve()
+                : null,
+            __('Customer detail retrieved successfully.'),
+        );
+    }
+
+    public function upsertMe(UpsertMyCustomerDetailRequest $request): JsonResponse
+    {
+        $user = $request->user()->load('customerDetail');
+
+        abort_unless($user->isCustomer(), 403);
+
+        $detail = DB::transaction(function () use ($request, $user): CustomerDetail {
+            $attributes = [
+                ...($user->customerDetail?->toArray() ?? []),
+                ...$request->validated(),
+                'user_id' => $user->id,
+                'billing_address' => $request->validated('street'),
+                'delivery_address' => $request->validated('street'),
+                'default_price_per_day' => $user->customerDetail?->default_price_per_day ?? 0,
+                'grace_period_days' => $user->customerDetail?->grace_period_days ?? 0,
+                'is_active' => true,
+            ];
+
+            if ($user->customerDetail) {
+                return $this->customerDetailService->update(
+                    $user->customerDetail,
+                    CustomerDetailData::fromArray($attributes),
+                );
+            }
+
+            return $this->customerDetailService->create(CustomerDetailData::fromArray($attributes));
+        });
+
+        return $this->successItem($detail, CustomerDetailResource::class, __('Customer detail saved successfully.'));
     }
 
     public function store(StoreCustomerDetailRequest $request): JsonResponse

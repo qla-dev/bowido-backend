@@ -70,6 +70,7 @@ class RoleService extends BaseCrudService
                     'can_create' => (bool) $permission['can_create'],
                     'can_update' => (bool) $permission['can_update'],
                     'can_delete' => (bool) $permission['can_delete'],
+                    'scope' => $permission['scope'] ?? null,
                 ],
             );
         }
@@ -92,6 +93,7 @@ class RoleService extends BaseCrudService
                     'can_create' => true,
                     'can_update' => true,
                     'can_delete' => true,
+                    'scope' => null,
                 ],
                 $data->moduleIds,
             ));

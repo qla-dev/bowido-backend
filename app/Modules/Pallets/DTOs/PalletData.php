@@ -10,7 +10,7 @@ readonly class PalletData
      * @param  array<string, mixed>|null  $metadata
      */
     public function __construct(
-        public int $userId,
+        public ?int $userId,
         public int $currentStatusId,
         public string $type,
         public string $assetType,
@@ -22,8 +22,7 @@ readonly class PalletData
         public bool $isActive,
         public bool $isGhost,
         public ?array $metadata,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>  $attributes
@@ -39,7 +38,9 @@ readonly class PalletData
             : null;
 
         return new self(
-            userId: (int) $attributes['user_id'],
+            userId: isset($attributes['user_id']) && $attributes['user_id'] !== ''
+                ? (int) $attributes['user_id']
+                : null,
             currentStatusId: (int) $attributes['current_status_id'],
             type: trim((string) ($attributes['type'] ?? $attributes['asset_type'] ?? 'pallet')),
             assetType: trim((string) ($attributes['asset_type'] ?? 'pallet')),

@@ -22,6 +22,7 @@ class RolePermission extends Model
         'can_create',
         'can_update',
         'can_delete',
+        'scope',
     ];
 
     protected function casts(): array

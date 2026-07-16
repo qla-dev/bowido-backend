@@ -2,8 +2,8 @@
 
 namespace App\Modules\Shared\Services;
 
-use App\Modules\Invoices\Models\Invoice;
 use App\Modules\InvoiceItems\Models\InvoiceItem;
+use App\Modules\Invoices\Models\Invoice;
 use App\Modules\Pallets\Models\Pallet;
 use App\Modules\Shared\Enums\InvoiceStatus;
 use App\Modules\Users\Models\User;
@@ -15,9 +15,7 @@ use Illuminate\Validation\ValidationException;
 
 class InvoiceGenerationService
 {
-    public function __construct(private readonly BillableDaysCalculator $billableDaysCalculator)
-    {
-    }
+    public function __construct(private readonly BillableDaysCalculator $billableDaysCalculator) {}
 
     public function generate(
         User $customer,
@@ -53,15 +51,19 @@ class InvoiceGenerationService
 
             $invoiceRecord = $invoice instanceof Invoice
                 ? Invoice::query()->whereKey($invoice->id)->lockForUpdate()->firstOrFail()
-                : new Invoice();
+                : Invoice::query()->where('user_id', $customer->id)
+                    ->whereDate('period_start', Carbon::parse($periodStart)->toDateString())
+                    ->whereDate('period_end', Carbon::parse($periodEnd)->toDateString())
+                    ->lockForUpdate()
+                    ->first() ?? new Invoice;
             $invoiceRecord->fill([
                 'user_id' => $customer->id,
-                'invoice_number' => $invoice?->invoice_number ?? $this->nextInvoiceNumber(),
+                'invoice_number' => $invoiceRecord->invoice_number ?: $this->nextInvoiceNumber(),
                 'status' => InvoiceStatus::Issued->value,
                 'currency' => strtoupper($currency),
                 'period_start' => Carbon::parse($periodStart)->toDateString(),
                 'period_end' => Carbon::parse($periodEnd)->toDateString(),
-                'issued_at' => $invoice?->issued_at ?? now(),
+                'issued_at' => $invoiceRecord->issued_at ?? now(),
                 'due_at' => $dueAt?->toDateString(),
                 'notes' => $notes,
             ]);
@@ -69,17 +71,18 @@ class InvoiceGenerationService
 
             $invoiceRecord->items()->delete();
 
-            $subtotal = 0.0;
+            $subtotalCents = 0;
 
             foreach ($lineItems as $lineItem) {
-                $subtotal += $lineItem['amount'];
+                $subtotalCents += (int) $lineItem['amount_cents'];
+                unset($lineItem['amount_cents']);
 
                 $invoiceRecord->items()->create($lineItem);
             }
 
             $invoiceRecord->forceFill([
-                'subtotal_amount' => round($subtotal, 2),
-                'total_amount' => round($subtotal, 2),
+                'subtotal_amount' => number_format($subtotalCents / 100, 2, '.', ''),
+                'total_amount' => number_format($subtotalCents / 100, 2, '.', ''),
             ])->save();
 
             return $invoiceRecord->load(['user.role', 'items.pallet']);
@@ -123,17 +126,28 @@ class InvoiceGenerationService
                     return null;
                 }
 
+                $priceCents = (int) round($pricePerDay * 100);
+                $amountCents = $billedDays * $priceCents;
+                $receivedAt = $pallet->auditLogs
+                    ->filter(fn ($log) => $log->newStatus?->slug === 'bij-de-klant')
+                    ->sortBy('created_at')
+                    ->first()?->created_at ?? $pallet->created_at;
+
                 return [
                     'pallet_id' => $pallet->id,
                     'description' => __('Storage billing for pallet :qr_code', ['qr_code' => $pallet->qr_code]),
                     'period_start' => Carbon::parse($periodStart)->toDateString(),
                     'period_end' => Carbon::parse($periodEnd)->toDateString(),
                     'billed_days' => $billedDays,
-                    'price_per_day' => round($pricePerDay, 2),
-                    'amount' => round($billedDays * $pricePerDay, 2),
+                    'price_per_day' => number_format($priceCents / 100, 2, '.', ''),
+                    'amount' => number_format($amountCents / 100, 2, '.', ''),
+                    'amount_cents' => $amountCents,
                     'metadata' => [
                         'asset_type' => $pallet->asset_type,
                         'current_status_id' => $pallet->current_status_id,
+                        'received_date' => $receivedAt?->toDateString(),
+                        'grace_period_days' => $gracePeriodDays,
+                        'overdue_days' => $billedDays,
                     ],
                 ];
             })

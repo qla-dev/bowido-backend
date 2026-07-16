@@ -18,9 +18,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PalletPhotoController extends ApiController
 {
-    public function __construct(private readonly PalletPhotoService $palletPhotoService)
-    {
-    }
+    public function __construct(private readonly PalletPhotoService $palletPhotoService) {}
 
     public function store(StorePalletPhotoRequest $request, Pallet $pallet): JsonResponse
     {
@@ -54,6 +52,8 @@ class PalletPhotoController extends ApiController
 
     public function file(PalletPhoto $palletPhoto): StreamedResponse
     {
+        $palletPhoto->loadMissing('pallet');
+        abort_unless($this->palletPhotoService->canAccess(request()->user(), $palletPhoto), 403);
         abort_if($palletPhoto->expires_at->isPast(), 410, __('This photo has expired.'));
         abort_unless(Storage::disk($palletPhoto->disk)->exists($palletPhoto->path), 404, __('Photo not found.'));
 

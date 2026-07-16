@@ -85,5 +85,14 @@
     "Not Found": "Niet gevonden",
     "Method Not Allowed": "Methode niet toegestaan",
     "Too Many Requests": "Te veel verzoeken",
-    "Service Unavailable": "Dienst niet beschikbaar"
+    "Service Unavailable": "Dienst niet beschikbaar",
+    "Customer detail saved successfully.": "Klantgegevens succesvol opgeslagen.",
+    "Gallery images retrieved successfully.": "Galerijafoto's succesvol opgehaald.",
+    "The customer does not have a valid invoice email address.": "De klant heeft geen geldig e-mailadres voor facturen.",
+    "Invoice sent successfully.": "Factuur succesvol verzonden.",
+    "Bowido invoice :number": "Bowido-factuur :number",
+    "Dear customer,": "Beste klant,",
+    "Your Bowido invoice :number is attached.": "Uw Bowido-factuur :number is bijgevoegd.",
+    "Kind regards,": "Met vriendelijke groet,",
+    "The selected user must be a customer.": "De geselecteerde gebruiker moet een klant zijn."
 }

@@ -12,6 +12,9 @@ readonly class CustomerDetailData
         public ?string $kvk,
         public ?string $billingEmail,
         public ?string $fixedPhone,
+        public ?string $street,
+        public ?string $postalCode,
+        public ?string $warehouseScope,
         public ?string $billingAddress,
         public ?string $deliveryAddress,
         public ?string $taxNumber,
@@ -20,8 +23,7 @@ readonly class CustomerDetailData
         public int $gracePeriodDays,
         public ?string $notes,
         public bool $isActive,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>  $attributes
@@ -36,6 +38,9 @@ readonly class CustomerDetailData
             kvk: isset($attributes['kvk']) ? trim((string) $attributes['kvk']) : ($attributes['kvk_number'] ?? null),
             billingEmail: $attributes['billing_email'] ?? null,
             fixedPhone: $attributes['fixed_phone'] ?? null,
+            street: $attributes['street'] ?? null,
+            postalCode: $attributes['postal_code'] ?? null,
+            warehouseScope: $attributes['warehouse_scope'] ?? null,
             billingAddress: $attributes['billing_address'] ?? null,
             deliveryAddress: $attributes['delivery_address'] ?? null,
             taxNumber: $attributes['tax_number'] ?? null,
@@ -60,6 +65,9 @@ readonly class CustomerDetailData
             'kvk' => $this->kvk,
             'billing_email' => $this->billingEmail,
             'fixed_phone' => $this->fixedPhone,
+            'street' => $this->street,
+            'postal_code' => $this->postalCode,
+            'warehouse_scope' => $this->warehouseScope,
             'billing_address' => $this->billingAddress,
             'delivery_address' => $this->deliveryAddress,
             'tax_number' => $this->taxNumber,

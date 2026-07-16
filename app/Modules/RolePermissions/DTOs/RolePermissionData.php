@@ -12,8 +12,8 @@ readonly class RolePermissionData
         public bool $canCreate,
         public bool $canUpdate,
         public bool $canDelete,
-    ) {
-    }
+        public ?string $scope,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $attributes
@@ -28,6 +28,7 @@ readonly class RolePermissionData
             canCreate: (bool) ($attributes['can_create'] ?? false),
             canUpdate: (bool) ($attributes['can_update'] ?? false),
             canDelete: (bool) ($attributes['can_delete'] ?? false),
+            scope: isset($attributes['scope']) ? (string) $attributes['scope'] : null,
         );
     }
 
@@ -44,6 +45,7 @@ readonly class RolePermissionData
             'can_create' => $this->canCreate,
             'can_update' => $this->canUpdate,
             'can_delete' => $this->canDelete,
+            'scope' => $this->scope,
         ];
     }
 }

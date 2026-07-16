@@ -85,5 +85,14 @@
     "Not Found": "Not Found",
     "Method Not Allowed": "Method Not Allowed",
     "Too Many Requests": "Too Many Requests",
-    "Service Unavailable": "Service Unavailable"
+    "Service Unavailable": "Service Unavailable",
+    "Customer detail saved successfully.": "Customer detail saved successfully.",
+    "Gallery images retrieved successfully.": "Gallery images retrieved successfully.",
+    "The customer does not have a valid invoice email address.": "The customer does not have a valid invoice email address.",
+    "Invoice sent successfully.": "Invoice sent successfully.",
+    "Bowido invoice :number": "Bowido invoice :number",
+    "Dear customer,": "Dear customer,",
+    "Your Bowido invoice :number is attached.": "Your Bowido invoice :number is attached.",
+    "Kind regards,": "Kind regards,",
+    "The selected user must be a customer.": "The selected user must be a customer."
 }

@@ -85,5 +85,14 @@
     "Not Found": "Nije pronađeno",
     "Method Not Allowed": "Metoda nije dozvoljena",
     "Too Many Requests": "Previše zahtjeva",
-    "Service Unavailable": "Servis nije dostupan"
+    "Service Unavailable": "Servis nije dostupan",
+    "Customer detail saved successfully.": "Podaci klijenta su uspješno sačuvani.",
+    "Gallery images retrieved successfully.": "Slike iz galerije su uspješno učitane.",
+    "The customer does not have a valid invoice email address.": "Klijent nema ispravnu email adresu za fakture.",
+    "Invoice sent successfully.": "Faktura je uspješno poslana.",
+    "Bowido invoice :number": "Bowido faktura :number",
+    "Dear customer,": "Poštovani klijente,",
+    "Your Bowido invoice :number is attached.": "Vaša Bowido faktura :number nalazi se u prilogu.",
+    "Kind regards,": "Srdačan pozdrav,",
+    "The selected user must be a customer.": "Odabrani korisnik mora biti klijent."
 }

@@ -58,7 +58,7 @@ class PalletDashboardStatsFeatureTest extends TestCase
             ->assertJsonPath('data.overdue_units', 1);
     }
 
-    public function test_customer_dashboard_stats_are_limited_to_their_pallets(): void
+    public function test_customer_dashboard_stats_only_include_pallets_at_or_returning_from_customer(): void
     {
         $customer = $this->makeUser('customer');
         $otherCustomer = $this->makeUser('customer');
@@ -97,8 +97,8 @@ class PalletDashboardStatsFeatureTest extends TestCase
         $this->actingAs($customer, 'api')
             ->getJson('/api/pallets/dashboard-stats')
             ->assertOk()
-            ->assertJsonPath('data.total_pallets', 2)
-            ->assertJsonPath('data.in_transport', 1)
+            ->assertJsonPath('data.total_pallets', 1)
+            ->assertJsonPath('data.in_transport', 0)
             ->assertJsonPath('data.overdue_units', 1);
     }
 }

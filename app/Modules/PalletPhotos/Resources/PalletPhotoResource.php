@@ -19,6 +19,7 @@ class PalletPhotoResource extends JsonResource
             'service_report_id' => $this->service_report_id,
             'uploaded_by_user_id' => $this->uploaded_by_user_id,
             'type' => $this->type?->value,
+            'warehouse_scope' => $this->warehouse_scope,
             'original_name' => $this->original_name,
             'mime_type' => $this->mime_type,
             'size_bytes' => $this->size_bytes,
@@ -27,6 +28,18 @@ class PalletPhotoResource extends JsonResource
                 ? URL::temporarySignedRoute('pallet-photos.file', now()->addMinutes(config('pallet-photos.temporary_url_minutes')), ['palletPhoto' => $this->id])
                 : null,
             'created_at' => $this->created_at,
+            'pallet' => $this->whenLoaded('pallet', fn (): array => [
+                'id' => $this->pallet->id,
+                'qr_code' => $this->pallet->qr_code,
+                'name' => $this->pallet->pallet_name ?? $this->pallet->reference_code ?? $this->pallet->qr_code,
+                'customer' => $this->pallet->user?->customerDetail?->company_name ?? $this->pallet->user?->name,
+                'status' => $this->pallet->currentStatus?->name,
+            ]),
+            'uploader' => $this->whenLoaded('uploadedByUser', fn (): array => [
+                'id' => $this->uploadedByUser->id,
+                'name' => $this->uploadedByUser->name,
+                'role' => $this->uploadedByUser->role?->name,
+            ]),
         ];
     }
 }

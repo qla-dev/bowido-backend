@@ -2,9 +2,9 @@
 
 namespace App\Modules\ServiceReports\Services;
 
-use App\Modules\Pallets\Repositories\PalletRepository;
 use App\Modules\PalletPhotos\Enums\PalletPhotoType;
 use App\Modules\PalletPhotos\Services\PalletPhotoService;
+use App\Modules\Pallets\Repositories\PalletRepository;
 use App\Modules\ServiceReports\DTOs\ServiceReportData;
 use App\Modules\ServiceReports\Models\ServiceReport;
 use App\Modules\ServiceReports\Repositories\ServiceReportRepository;
@@ -53,7 +53,7 @@ class ServiceReportService extends BaseCrudService
                     pallet: $pallet,
                     actor: $actor,
                     image: $data->image,
-                    type: PalletPhotoType::DamageReport,
+                    type: $data->issueType === 'service' ? PalletPhotoType::ServiceReport : PalletPhotoType::DamageReport,
                     serviceReport: $serviceReport,
                 );
             }
@@ -89,7 +89,7 @@ class ServiceReportService extends BaseCrudService
                     pallet: $lockedServiceReport->pallet,
                     actor: $actor,
                     image: $data->image,
-                    type: PalletPhotoType::DamageReport,
+                    type: $data->issueType === 'service' ? PalletPhotoType::ServiceReport : PalletPhotoType::DamageReport,
                     serviceReport: $lockedServiceReport,
                 );
             } elseif ($data->imagePath !== null) {

@@ -24,6 +24,7 @@ class UpdateRoleRequest extends ApiFormRequest
             'role_permissions.*.can_create' => ['sometimes', 'boolean'],
             'role_permissions.*.can_update' => ['sometimes', 'boolean'],
             'role_permissions.*.can_delete' => ['sometimes', 'boolean'],
+            'role_permissions.*.scope' => ['nullable', 'in:all,warehouse_nl,warehouse_bih'],
         ];
     }
 }

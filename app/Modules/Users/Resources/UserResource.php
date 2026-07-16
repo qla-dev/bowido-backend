@@ -27,6 +27,14 @@ class UserResource extends JsonResource
             'email_verified_at' => $this->email_verified_at,
             'last_login_at' => $this->last_login_at,
             'role' => new RoleResource($this->whenLoaded('role')),
+            'permission_codes' => $this->whenLoaded('role', fn (): array => $this->isAdmin()
+                ? ['*']
+                : $this->role->rolePermissions
+                    ->filter(fn ($permission): bool => $permission->can_list || $permission->can_view)
+                    ->map(fn ($permission): ?string => $permission->module?->slug)
+                    ->filter()
+                    ->values()
+                    ->all()),
             'customer_detail' => new CustomerDetailResource($this->whenLoaded('customerDetail')),
         ];
     }
