@@ -26,6 +26,8 @@ Route::get('health', fn () => response()->json([
 Route::prefix('auth')->group(function (): void {
     Route::get('login-options', [AuthController::class, 'loginOptions']);
     Route::post('login', [AuthController::class, 'login']);
+    Route::post('kvk-lookup', [AuthController::class, 'kvkLookup']);
+    Route::post('kvk-register', [AuthController::class, 'registerByKvk']);
 
     Route::middleware('auth:web,api')->group(function (): void {
         Route::post('register', [AuthController::class, 'register']);
