@@ -149,15 +149,26 @@ class ReferenceDataSeeder extends Seeder
             $permissions = $this->permissionsForRole($roleName, $modules);
 
             foreach ($permissions as $permission) {
+                $attributes = [
+                    'can_list' => $permission['can_list'],
+                    'can_view' => $permission['can_view'],
+                    'can_create' => $permission['can_create'],
+                    'can_update' => $permission['can_update'],
+                    'can_delete' => $permission['can_delete'],
+                ];
+
+                if ($roleName === 'admin') {
+                    RolePermission::query()->updateOrCreate(
+                        ['role_id' => $role->id, 'module_id' => $permission['module_id']],
+                        $attributes,
+                    );
+
+                    continue;
+                }
+
                 RolePermission::query()->firstOrCreate(
                     ['role_id' => $role->id, 'module_id' => $permission['module_id']],
-                    [
-                        'can_list' => $permission['can_list'],
-                        'can_view' => $permission['can_view'],
-                        'can_create' => $permission['can_create'],
-                        'can_update' => $permission['can_update'],
-                        'can_delete' => $permission['can_delete'],
-                    ],
+                    $attributes,
                 );
             }
         }
