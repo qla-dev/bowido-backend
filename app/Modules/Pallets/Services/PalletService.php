@@ -60,6 +60,20 @@ class PalletService extends BaseCrudService
             $originalAttributes = $lockedPallet->only(['user_id', 'current_status_id', 'current_location', 'qr_code']);
             $attributes = $data->toArray();
             $attributes['user_id'] = $this->normalizedCustomerId($data);
+            $nextStatus = $this->statusRepository->findOrFail($data->currentStatusId);
+
+            if (in_array($nextStatus->slug, ['bih-nl-transport', 'nl-bih-transport'], true)) {
+                $attributes['current_location'] = 'Na putu';
+            }
+
+            if ($this->customerAssignmentRule->statusAllowsCustomer($nextStatus)) {
+                $customer = $data->userId
+                    ? User::query()->with('customerDetail')->find($data->userId)
+                    : null;
+                $attributes['current_location'] = $customer?->customerDetail?->delivery_address
+                    ?: $customer?->customerDetail?->billing_address
+                    ?: '';
+            }
 
             $overdueInvoiceData = $this->overdueInvoiceData($lockedPallet, $data->currentStatusId);
 
