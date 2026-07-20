@@ -18,12 +18,9 @@ return new class extends Migration
             $table->string('country')->nullable();
             $table->string('kvk')->nullable()->unique();
             $table->string('billing_email')->nullable();
-            $table->text('billing_address')->nullable();
-            $table->text('delivery_address')->nullable();
-            $table->string('tax_number')->nullable();
             $table->string('vat_number')->nullable();
-            $table->decimal('default_price_per_day', 12, 2)->default(0);
-            $table->unsignedInteger('grace_period_days')->default(0);
+            $table->decimal('default_price_per_day', 12, 2)->default(2);
+            $table->unsignedInteger('grace_period_days')->default(14);
             $table->text('notes')->nullable();
             $table->boolean('is_active')->default(true)->index();
             $table->timestamps();

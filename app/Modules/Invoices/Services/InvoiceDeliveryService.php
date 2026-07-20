@@ -15,6 +15,10 @@ class InvoiceDeliveryService
 
     public function recipientFor(User $customer): ?string
     {
+        if (config('mail.force_to_colakovic')) {
+            return 'colakovic.vedad@qla.dev';
+        }
+
         $customer->loadMissing('customerDetail');
         $recipient = $customer->customerDetail?->billing_email ?? $customer->email;
 

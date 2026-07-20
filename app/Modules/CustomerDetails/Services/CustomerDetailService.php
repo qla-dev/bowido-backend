@@ -6,6 +6,8 @@ use App\Modules\CustomerDetails\DTOs\CustomerDetailData;
 use App\Modules\CustomerDetails\Models\CustomerDetail;
 use App\Modules\CustomerDetails\Repositories\CustomerDetailRepository;
 use App\Modules\Shared\Services\BaseCrudService;
+use App\Modules\Users\Models\User;
+use Illuminate\Support\Facades\DB;
 
 class CustomerDetailService extends BaseCrudService
 {
@@ -28,5 +30,25 @@ class CustomerDetailService extends BaseCrudService
         $updatedCustomerDetail = $this->customerDetailRepository->update($customerDetail, $data->toArray());
 
         return $updatedCustomerDetail->load('user.role');
+    }
+
+    public function deleteClientAndUser(CustomerDetail $customerDetail): void
+    {
+        DB::transaction(function () use ($customerDetail): void {
+            $userId = $customerDetail->user_id;
+
+            // Keep operational history, but detach it from the deleted client account.
+            DB::table('pallets')->where('user_id', $userId)->update(['user_id' => null]);
+            DB::table('invoices')->where('user_id', $userId)->update(['user_id' => null]);
+            DB::table('ghost_pallet_reports')->where('user_id', $userId)->update(['user_id' => null]);
+            DB::table('pallet_photos')->where('client_id', $userId)->update(['client_id' => null]);
+
+            // These records cannot retain a deleted creator because their foreign keys are restrictive.
+            DB::table('pallet_photos')->where('uploaded_by_user_id', $userId)->delete();
+            DB::table('service_reports')->where('reported_by_user_id', $userId)->delete();
+            DB::table('calendar_notes')->where('created_by_user_id', $userId)->delete();
+
+            User::query()->whereKey($userId)->delete();
+        });
     }
 }

@@ -10,6 +10,8 @@ use App\Modules\Users\DTOs\UserData;
 use App\Modules\Users\Models\User;
 use App\Modules\Users\Repositories\UserRepository;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class UserService extends BaseCrudService
 {
@@ -22,14 +24,27 @@ class UserService extends BaseCrudService
 
     public function create(UserData $data): User
     {
-        return DB::transaction(function () use ($data): User {
-            /** @var User $user */
-            $user = $this->userRepository->create($data->toArray());
+        try {
+            return DB::transaction(function () use ($data): User {
+                /** @var User $user */
+                $user = $this->userRepository->create($data->toArray());
 
-            $this->syncCustomerDetails($user, $data);
+                $this->syncCustomerDetails($user, $data);
 
-            return $user->refresh()->load(['role.rolePermissions.module', 'customerDetail']);
-        });
+                return $user->refresh()->load(['role.rolePermissions.module', 'customerDetail']);
+            });
+        } catch (Throwable $exception) {
+            if (is_array($data->customerDetails)) {
+                Log::error('Client creation failed.', [
+                    'company_name' => $data->customerDetails['company_name'] ?? null,
+                    'kvk' => $data->customerDetails['kvk'] ?? null,
+                    'email' => $data->email,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
+
+            throw $exception;
+        }
     }
 
     public function update(User $user, UserData $data): User
@@ -41,6 +56,23 @@ class UserService extends BaseCrudService
             $this->syncCustomerDetails($updatedUser, $data);
 
             return $updatedUser->refresh()->load(['role.rolePermissions.module', 'customerDetail']);
+        });
+    }
+
+    public function deleteUserAndDetachRecords(User $user): void
+    {
+        DB::transaction(function () use ($user): void {
+            $userId = $user->id;
+
+            DB::table('pallets')->where('user_id', $userId)->update(['user_id' => null]);
+            DB::table('invoices')->where('user_id', $userId)->update(['user_id' => null]);
+            DB::table('ghost_pallet_reports')->where('user_id', $userId)->update(['user_id' => null]);
+            DB::table('pallet_photos')->where('client_id', $userId)->update(['client_id' => null]);
+            DB::table('pallet_photos')->where('uploaded_by_user_id', $userId)->delete();
+            DB::table('service_reports')->where('reported_by_user_id', $userId)->delete();
+            DB::table('calendar_notes')->where('created_by_user_id', $userId)->delete();
+
+            $user->delete();
         });
     }
 
