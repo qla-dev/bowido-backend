@@ -9,6 +9,7 @@
     "Authenticated user retrieved successfully.": "Authenticated user retrieved successfully.",
     "Logout successful.": "Logout successful.",
     "Invalid credentials.": "Invalid credentials.",
+    "Email or password are incorrect.": "Email or password are incorrect.",
     "Selected role is invalid or inactive.": "Selected role is invalid or inactive.",
     "Users retrieved successfully.": "Users retrieved successfully.",
     "User created successfully.": "User created successfully.",

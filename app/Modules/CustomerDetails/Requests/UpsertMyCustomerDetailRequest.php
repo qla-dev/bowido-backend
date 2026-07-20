@@ -16,6 +16,7 @@ class UpsertMyCustomerDetailRequest extends ApiFormRequest
             'kvk' => ['required', 'string', 'max:255', Rule::unique('customer_details', 'kvk')->ignore($detailId)],
             'fixed_phone' => ['required', 'string', 'max:50'],
             'billing_email' => ['required', 'email', 'max:255'],
+            'billing_address' => ['required', 'string', 'max:1000'],
             'street' => ['required', 'string', 'max:255'],
             'postal_code' => ['required', 'string', 'max:32'],
             'warehouse_scope' => ['nullable', Rule::in(['warehouse_nl', 'warehouse_bih'])],

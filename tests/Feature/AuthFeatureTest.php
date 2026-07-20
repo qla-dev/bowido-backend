@@ -384,6 +384,12 @@ class AuthFeatureTest extends TestCase
 
     public function test_invalid_credentials_are_rejected(): void
     {
+        $authLogPath = storage_path('logs/laravel.log');
+
+        if (file_exists($authLogPath)) {
+            unlink($authLogPath);
+        }
+
         $user = $this->makeUser('admin', [
             'email' => 'admin@example.com',
             'password' => 'password123',
@@ -394,11 +400,20 @@ class AuthFeatureTest extends TestCase
             'password' => 'wrong-password',
         ])->assertUnauthorized();
 
-        $this->assertStringStartsWith('{"message":"Invalid credentials.","data":null,', $response->getContent());
+        $this->assertStringStartsWith('{"message":"Email or password are incorrect.","data":null,', $response->getContent());
 
         $this->assertDatabaseMissing('api_tokens', [
             'user_id' => $user->id,
         ]);
+
+        $this->assertFileExists($authLogPath);
+
+        $authLogContent = file_get_contents($authLogPath);
+
+        $this->assertIsString($authLogContent);
+        $this->assertStringContainsString('Auth login failed: password mismatch.', $authLogContent);
+        $this->assertStringNotContainsString('wrong-password', $authLogContent);
+        $this->assertStringNotContainsString($user->email, $authLogContent);
     }
 
     public function test_registration_requires_unique_email(): void
