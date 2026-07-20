@@ -55,10 +55,8 @@ class CustomerDetailController extends ApiController
                 ...($user->customerDetail?->toArray() ?? []),
                 ...$request->validated(),
                 'user_id' => $user->id,
-                'billing_address' => $request->validated('billing_address'),
-                'delivery_address' => trim($request->validated('street').' '.$request->validated('postal_code')),
-                'default_price_per_day' => $user->customerDetail?->default_price_per_day ?? 0,
-                'grace_period_days' => $user->customerDetail?->grace_period_days ?? 0,
+                'default_price_per_day' => $user->customerDetail?->default_price_per_day ?? 2,
+                'grace_period_days' => $user->customerDetail?->grace_period_days ?? 14,
                 'is_active' => true,
             ];
 
@@ -111,8 +109,8 @@ class CustomerDetailController extends ApiController
     {
         $this->authorize('delete', $customerDetail);
 
-        $this->customerDetailService->delete($customerDetail->id, request()->user());
+        $this->customerDetailService->deleteClientAndUser($customerDetail);
 
-        return $this->success(null, __('Customer detail deleted successfully.'));
+        return $this->success(null, __('Client and linked user deleted successfully.'));
     }
 }

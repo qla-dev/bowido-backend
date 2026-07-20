@@ -83,12 +83,49 @@ class AuthController extends ApiController
         $kvk = preg_replace('/[\s.-]+/', '', trim($validated['kvk']));
         $detail = CustomerDetail::query()->with('user')->whereRaw("replace(replace(replace(kvk, ' ', ''), '.', ''), '-', '') = ?", [$kvk])->first();
         if (! $detail) throw ValidationException::withMessages(['kvk' => [__('KVK number was not found.')]]);
-        return $this->success(['company_name' => $detail->company_name, 'kvk' => $detail->kvk, 'email' => $detail->billing_email, 'phone_number' => $detail->user?->phone_number, 'fixed_phone' => $detail->fixed_phone, 'billing_address' => $detail->billing_address, 'delivery_address' => $detail->delivery_address], __('Customer details found.'));
+        return $this->success([
+            'company_name' => $detail->company_name,
+            'kvk' => $detail->kvk,
+            'email' => $detail->billing_email,
+            'phone_number' => $detail->user?->phone_number,
+            'fixed_phone' => $detail->fixed_phone,
+            'street' => $detail->street,
+            'house_number' => $detail->house_number,
+            'postal_code' => $detail->postal_code,
+            'city' => $detail->city,
+            'warehouse1_street' => $detail->warehouse1_street,
+            'warehouse1_house_number' => $detail->warehouse1_house_number,
+            'warehouse1_postal_code' => $detail->warehouse1_postal_code,
+            'warehouse1_city' => $detail->warehouse1_city,
+            'warehouse2_street' => $detail->warehouse2_street,
+            'warehouse2_house_number' => $detail->warehouse2_house_number,
+            'warehouse2_postal_code' => $detail->warehouse2_postal_code,
+            'warehouse2_city' => $detail->warehouse2_city,
+        ], __('Customer details found.'));
     }
 
     public function registerByKvk(Request $request): JsonResponse
     {
-        $data = $request->validate(['kvk' => ['required', 'string', 'max:255'], 'name' => ['required', 'string', 'max:255'], 'email' => ['required', 'email', 'max:255'], 'billing_address' => ['required', 'string', 'max:1000'], 'delivery_address' => ['nullable', 'string', 'max:1000'], 'phone_number' => ['nullable', 'string', 'max:255'], 'fixed_phone' => ['nullable', 'string', 'max:50'], 'password' => ['required', 'string', 'min:8', 'confirmed']]);
+        $data = $request->validate([
+            'kvk' => ['required', 'string', 'max:255'],
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255'],
+            'phone_number' => ['nullable', 'string', 'max:255'],
+            'fixed_phone' => ['nullable', 'string', 'max:50'],
+            'street' => ['nullable', 'string', 'max:255'],
+            'house_number' => ['nullable', 'string', 'max:255'],
+            'postal_code' => ['nullable', 'string', 'max:32'],
+            'city' => ['nullable', 'string', 'max:255'],
+            'warehouse1_street' => ['nullable', 'string', 'max:255'],
+            'warehouse1_house_number' => ['nullable', 'string', 'max:255'],
+            'warehouse1_postal_code' => ['nullable', 'string', 'max:32'],
+            'warehouse1_city' => ['nullable', 'string', 'max:255'],
+            'warehouse2_street' => ['nullable', 'string', 'max:255'],
+            'warehouse2_house_number' => ['nullable', 'string', 'max:255'],
+            'warehouse2_postal_code' => ['nullable', 'string', 'max:32'],
+            'warehouse2_city' => ['nullable', 'string', 'max:255'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
         $kvk = preg_replace('/[\s.-]+/', '', trim($data['kvk']));
         $user = DB::transaction(function () use ($data, $kvk): User {
             $detail = CustomerDetail::query()->with('user')->lockForUpdate()->whereRaw("replace(replace(replace(kvk, ' ', ''), '.', ''), '-', '') = ?", [$kvk])->first();
@@ -98,7 +135,24 @@ class AuthController extends ApiController
             $phoneTaken = filled($data['phone_number'] ?? null) && User::query()->where('phone_number', $data['phone_number'])->whereKeyNot($detail->user_id)->exists();
             if ($phoneTaken) throw ValidationException::withMessages(['phone_number' => [__('This phone number is already in use.')]]);
             $detail->user->update(['name' => $data['name'], 'email' => strtolower($data['email']), 'phone_number' => $data['phone_number'] ?: null, 'password' => Hash::make($data['password']), 'is_active' => true]);
-            $detail->update(['company_name' => $data['name'], 'billing_email' => strtolower($data['email']), 'fixed_phone' => $data['fixed_phone'] ?: null, 'billing_address' => $data['billing_address'], 'delivery_address' => $data['delivery_address'] ?: null, 'is_active' => true]);
+            $detail->update([
+                'company_name' => $data['name'],
+                'billing_email' => strtolower($data['email']),
+                'fixed_phone' => $data['fixed_phone'] ?: null,
+                'street' => $data['street'] ?: null,
+                'house_number' => $data['house_number'] ?: null,
+                'postal_code' => $data['postal_code'] ?: null,
+                'city' => $data['city'] ?: null,
+                'warehouse1_street' => $data['warehouse1_street'] ?: null,
+                'warehouse1_house_number' => $data['warehouse1_house_number'] ?: null,
+                'warehouse1_postal_code' => $data['warehouse1_postal_code'] ?: null,
+                'warehouse1_city' => $data['warehouse1_city'] ?: null,
+                'warehouse2_street' => $data['warehouse2_street'] ?: null,
+                'warehouse2_house_number' => $data['warehouse2_house_number'] ?: null,
+                'warehouse2_postal_code' => $data['warehouse2_postal_code'] ?: null,
+                'warehouse2_city' => $data['warehouse2_city'] ?: null,
+                'is_active' => true,
+            ]);
             return $detail->user->fresh(['role', 'customerDetail']);
         });
         return $this->success((new UserResource($user))->resolve(), __('Registration successful.'), status: 201);

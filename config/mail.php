@@ -16,6 +16,9 @@ return [
 
     'default' => env('MAIL_MAILER', 'log'),
 
+    // Keep customer email addresses in the database while safely redirecting all outgoing mail in test environments.
+    'force_to_colakovic' => env('MAIL_FORCE_TO_COLAKOVIC', false),
+
     /*
     |--------------------------------------------------------------------------
     | Mailer Configurations

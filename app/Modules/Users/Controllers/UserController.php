@@ -12,6 +12,7 @@ use App\Modules\Users\Requests\UpdateUserRequest;
 use App\Modules\Users\Resources\UserResource;
 use App\Modules\Users\Services\UserService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Log;
 
 class UserController extends ApiController
 {
@@ -34,7 +35,17 @@ class UserController extends ApiController
     {
         $this->authorize('create', User::class);
 
+        Log::info('Client creation payload accepted for processing.', [
+            'payload' => $request->except(['password', 'password_confirmation']),
+        ]);
+
         $user = $this->userService->create(UserData::fromArray($request->validated()));
+
+        Log::info('Client user and customer details created.', [
+            'user_id' => $user->id,
+            'customer_detail_id' => $user->customerDetail?->id,
+            'email' => $user->email,
+        ]);
 
         return $this->successItem($user, UserResource::class, __('User created successfully.'), 201);
     }
@@ -66,7 +77,7 @@ class UserController extends ApiController
     {
         $this->authorize('delete', $user);
 
-        $this->userService->delete($user->id, request()->user());
+        $this->userService->deleteUserAndDetachRecords($user);
 
         return $this->success(null, __('User deleted successfully.'));
     }

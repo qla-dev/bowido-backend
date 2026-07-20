@@ -52,13 +52,21 @@ class CustomerDetailRepository extends BaseRepository
             $builder
                 ->where('company_name', 'like', $like)
                 ->orWhere('country', 'like', $like)
-                ->orWhere('province', 'like', $like)
                 ->orWhere('kvk', 'like', $like)
                 ->orWhere('billing_email', 'like', $like)
                 ->orWhere('fixed_phone', 'like', $like)
-                ->orWhere('billing_address', 'like', $like)
-                ->orWhere('delivery_address', 'like', $like)
-                ->orWhere('tax_number', 'like', $like)
+                ->orWhere('street', 'like', $like)
+                ->orWhere('house_number', 'like', $like)
+                ->orWhere('postal_code', 'like', $like)
+                ->orWhere('city', 'like', $like)
+                ->orWhere('warehouse1_street', 'like', $like)
+                ->orWhere('warehouse1_house_number', 'like', $like)
+                ->orWhere('warehouse1_postal_code', 'like', $like)
+                ->orWhere('warehouse1_city', 'like', $like)
+                ->orWhere('warehouse2_street', 'like', $like)
+                ->orWhere('warehouse2_house_number', 'like', $like)
+                ->orWhere('warehouse2_postal_code', 'like', $like)
+                ->orWhere('warehouse2_city', 'like', $like)
                 ->orWhere('vat_number', 'like', $like)
                 ->orWhereHas('user', function (Builder $userQuery) use ($like): void {
                     $userQuery
@@ -84,10 +92,11 @@ class CustomerDetailRepository extends BaseRepository
                     ->limit(1),
                 $direction,
             )->orderBy('id'),
-            'address' => 'delivery_address',
-            'warehouses' => 'delivery_address',
+            'address' => 'street',
+            'warehouses' => 'warehouse1_street',
+            'warehouse1' => 'warehouse1_street',
+            'warehouse2' => 'warehouse2_street',
             'country' => 'country',
-            'province' => 'province',
             'rate' => 'default_price_per_day',
             'price_per_day' => 'default_price_per_day',
             'gracePeriod' => 'grace_period_days',

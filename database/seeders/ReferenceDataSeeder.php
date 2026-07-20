@@ -124,7 +124,7 @@ class ReferenceDataSeeder extends Seeder
                 'sort_order' => 80,
             ],
             [
-                'name' => 'Service',
+                'name' => 'Voor reparatie',
                 'slug' => 'service',
                 'description' => 'Pallet is in Bowido service or repair.',
                 'is_billable' => false,
