@@ -2,6 +2,7 @@
 
 namespace App\Modules\Pallets\Resources;
 
+use App\Modules\DeliveryLocations\Resources\DeliveryLocationResource;
 use App\Modules\Statuses\Resources\StatusResource;
 use App\Modules\Users\Resources\UserResource;
 use Illuminate\Http\Request;
@@ -43,6 +44,7 @@ class PalletResource extends JsonResource
             'updated_at' => $this->updated_at,
             'user' => new UserResource($this->whenLoaded('user')),
             'current_status' => new StatusResource($this->whenLoaded('currentStatus')),
+            'delivery_location' => new DeliveryLocationResource($this->whenLoaded('deliveryLocation')),
         ];
     }
 }

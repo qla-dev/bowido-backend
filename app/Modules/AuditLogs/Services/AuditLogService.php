@@ -5,6 +5,7 @@ namespace App\Modules\AuditLogs\Services;
 use App\Modules\AuditLogs\DTOs\AuditLogData;
 use App\Modules\AuditLogs\Models\AuditLog;
 use App\Modules\AuditLogs\Repositories\AuditLogRepository;
+use App\Modules\Shared\DTOs\ListQueryData;
 use App\Modules\Shared\Services\BaseCrudService;
 use App\Modules\Users\Models\User;
 
@@ -35,6 +36,14 @@ class AuditLogService extends BaseCrudService
         ]);
 
         return $auditLog->load(['pallet.currentStatus', 'madeByUser.role', 'oldStatus', 'newStatus', 'oldClient.role', 'newClient.role']);
+    }
+
+    /**
+     * @return array{total: int, status_changes: int, qr_version_changes: int}
+     */
+    public function summary(ListQueryData $queryData, ?User $actor = null): array
+    {
+        return $this->auditLogRepository->summary($queryData, $actor);
     }
 
     public function update(AuditLog $auditLog, AuditLogData $data): AuditLog

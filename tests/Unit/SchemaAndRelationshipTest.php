@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Modules\CalendarNotes\Models\CalendarNote;
 use App\Modules\CustomerDetails\Models\CustomerDetail;
+use App\Modules\DeliveryLocations\Models\DeliveryLocation;
 use App\Modules\InvoiceItems\Models\InvoiceItem;
 use App\Modules\Invoices\Models\Invoice;
 use App\Modules\Pallets\Models\Pallet;
@@ -24,6 +25,7 @@ class SchemaAndRelationshipTest extends TestCase
             'customer_details',
             'statuses',
             'pallets',
+            'delivery_locations',
             'audit_logs',
             'service_reports',
             'ghost_pallet_reports',
@@ -61,6 +63,14 @@ class SchemaAndRelationshipTest extends TestCase
             'invoice_id' => $invoice->id,
             'pallet_id' => $pallet->id,
         ]);
+        $deliveryLocation = DeliveryLocation::query()->create([
+            'pallet_id' => $pallet->id,
+            'latitude' => 43.8563,
+            'longitude' => 18.4131,
+            'source' => 'device_gps',
+            'confirmed_by_user' => true,
+            'created_by_user_id' => $user->id,
+        ]);
 
         $this->assertTrue($user->role()->exists());
         $this->assertTrue($user->customerDetail()->exists());
@@ -71,6 +81,8 @@ class SchemaAndRelationshipTest extends TestCase
         $this->assertTrue($calendarNote->notifiedUsers()->whereKey($user->id)->exists());
         $this->assertSame($invoice->id, $invoiceItem->invoice->id);
         $this->assertSame($pallet->id, $invoiceItem->pallet->id);
+        $this->assertSame($deliveryLocation->id, $pallet->deliveryLocation->id);
+        $this->assertSame($user->id, $deliveryLocation->createdBy->id);
     }
 
     public function test_expected_modules_are_seeded(): void

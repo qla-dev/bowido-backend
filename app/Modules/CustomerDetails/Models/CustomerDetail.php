@@ -58,4 +58,37 @@ class CustomerDetail extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function warehouseOneAddress(): ?string
+    {
+        return $this->formatAddress(
+            $this->warehouse1_street,
+            $this->warehouse1_house_number,
+            $this->warehouse1_postal_code,
+            $this->warehouse1_city,
+        );
+    }
+
+    public function businessAddress(): ?string
+    {
+        return $this->formatAddress(
+            $this->street,
+            $this->house_number,
+            $this->postal_code,
+            $this->city,
+        );
+    }
+
+    private function formatAddress(
+        ?string $street,
+        ?string $houseNumber,
+        ?string $postalCode,
+        ?string $city,
+    ): ?string {
+        $streetLine = trim(implode(' ', array_filter([$street, $houseNumber])));
+        $localityLine = trim(implode(' ', array_filter([$postalCode, $city])));
+        $address = implode(', ', array_filter([$streetLine, $localityLine]));
+
+        return $address !== '' ? $address : null;
+    }
 }

@@ -30,7 +30,7 @@ class PalletRepository extends BaseRepository
 
     protected function relations(): array
     {
-        return ['user.customerDetail', 'currentStatus'];
+        return ['user.customerDetail', 'currentStatus', 'deliveryLocation'];
     }
 
     protected function scopeForActor(Builder $query, ?User $actor): Builder
@@ -150,6 +150,7 @@ class PalletRepository extends BaseRepository
         return $pallet->auditLogs()->exists()
             || $pallet->serviceReports()->exists()
             || $pallet->invoiceItems()->exists()
+            || $pallet->deliveryLocation()->exists()
             || GhostPalletReport::query()->where('paired_pallet_id', $pallet->id)->exists();
     }
 

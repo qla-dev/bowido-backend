@@ -9,18 +9,23 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('customer_details', function (Blueprint $table): void {
+        $legacyColumns = array_values(array_filter([
+            'billing_address',
+            'delivery_address',
+            'tax_number',
+            'warehouse_postal_code',
+            'warehouse_house_number',
+            'warehouse_street',
+            'warehouse_city',
+        ], fn (string $column): bool => Schema::hasColumn('customer_details', $column)));
+
+        Schema::table('customer_details', function (Blueprint $table) use ($legacyColumns): void {
             $table->text('warehouse1')->nullable()->after('warehouse_scope');
             $table->text('warehouse2')->nullable()->after('warehouse1');
-            $table->dropColumn([
-                'billing_address',
-                'delivery_address',
-                'tax_number',
-                'warehouse_postal_code',
-                'warehouse_house_number',
-                'warehouse_street',
-                'warehouse_city',
-            ]);
+
+            if ($legacyColumns !== []) {
+                $table->dropColumn($legacyColumns);
+            }
         });
 
         Schema::table('customer_details', function (Blueprint $table): void {

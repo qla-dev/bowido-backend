@@ -4,6 +4,8 @@ namespace App\Modules\AuditLogs\Repositories;
 
 use App\Modules\AuditLogs\Models\AuditLog;
 use App\Modules\Pallets\Models\Pallet;
+use App\Modules\Shared\DTOs\ListQueryData;
+use App\Modules\Shared\Enums\AuditEventType;
 use App\Modules\Shared\Repositories\BaseRepository;
 use App\Modules\Statuses\Models\Status;
 use App\Modules\Users\Models\User;
@@ -12,6 +14,27 @@ use Illuminate\Database\Eloquent\Model;
 
 class AuditLogRepository extends BaseRepository
 {
+    /**
+     * @return array{total: int, status_changes: int, qr_version_changes: int}
+     */
+    public function summary(ListQueryData $queryData, ?User $actor = null): array
+    {
+        $query = $this->applySearch(
+            $this->applyFilters($this->newQuery($actor), $queryData->filters),
+            $queryData->search,
+        );
+
+        return [
+            'total' => (clone $query)->count(),
+            'status_changes' => (clone $query)
+                ->where('event_type', AuditEventType::StatusChanged->value)
+                ->count(),
+            'qr_version_changes' => (clone $query)
+                ->where('event_type', AuditEventType::QrCodeChanged->value)
+                ->count(),
+        ];
+    }
+
     protected function allowedFilters(): array
     {
         return [

@@ -3,6 +3,7 @@
 namespace App\Modules\Pallets\Models;
 
 use App\Modules\AuditLogs\Models\AuditLog;
+use App\Modules\DeliveryLocations\Models\DeliveryLocation;
 use App\Modules\InvoiceItems\Models\InvoiceItem;
 use App\Modules\PalletPhotos\Models\PalletPhoto;
 use App\Modules\ServiceReports\Models\ServiceReport;
@@ -13,6 +14,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Pallet extends Model
 {
@@ -81,6 +83,11 @@ class Pallet extends Model
     public function photos(): HasMany
     {
         return $this->hasMany(PalletPhoto::class);
+    }
+
+    public function deliveryLocation(): HasOne
+    {
+        return $this->hasOne(DeliveryLocation::class);
     }
 
     public function invoiceItems(): HasMany

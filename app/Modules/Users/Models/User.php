@@ -6,6 +6,7 @@ use App\Modules\AuditLogs\Models\AuditLog;
 use App\Modules\Auth\Models\ApiToken;
 use App\Modules\CalendarNotes\Models\CalendarNote;
 use App\Modules\CustomerDetails\Models\CustomerDetail;
+use App\Modules\DeliveryLocations\Models\DeliveryLocation;
 use App\Modules\GhostPalletReports\Models\GhostPalletReport;
 use App\Modules\Invoices\Models\Invoice;
 use App\Modules\Pallets\Models\Pallet;
@@ -74,6 +75,11 @@ class User extends Authenticatable
     public function auditLogsMade(): HasMany
     {
         return $this->hasMany(AuditLog::class, 'made_by_user_id');
+    }
+
+    public function deliveryLocationsCreated(): HasMany
+    {
+        return $this->hasMany(DeliveryLocation::class, 'created_by_user_id');
     }
 
     public function serviceReportsCreated(): HasMany

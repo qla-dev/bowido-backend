@@ -4,9 +4,11 @@ use App\Modules\AuditLogs\Controllers\AuditLogController;
 use App\Modules\Auth\Controllers\AuthController;
 use App\Modules\CalendarNotes\Controllers\CalendarNoteController;
 use App\Modules\CustomerDetails\Controllers\CustomerDetailController;
+use App\Modules\DeliveryLocations\Controllers\DeliveryLocationController;
 use App\Modules\GhostPalletReports\Controllers\GhostPalletReportController;
 use App\Modules\InvoiceItems\Controllers\InvoiceItemController;
 use App\Modules\Invoices\Controllers\InvoiceController;
+use App\Modules\Locations\Controllers\ReverseGeocodingController;
 use App\Modules\Modules\Controllers\ModuleController;
 use App\Modules\PalletPhotos\Controllers\GalleryController;
 use App\Modules\PalletPhotos\Controllers\PalletPhotoController;
@@ -37,6 +39,8 @@ Route::prefix('auth')->group(function (): void {
 });
 
 Route::middleware('auth:web,api')->group(function (): void {
+    Route::post('location/reverse-geocode', ReverseGeocodingController::class)
+        ->middleware('throttle:reverse-geocoding');
     Route::get('gallery', GalleryController::class);
     Route::get('pallet-photos/{palletPhoto}/file', [PalletPhotoController::class, 'file'])
         ->middleware('signed')
@@ -49,6 +53,7 @@ Route::middleware('auth:web,api')->group(function (): void {
         ->parameters(['customer_details' => 'customerDetail']);
     Route::apiResource('statuses', StatusController::class);
     Route::get('pallets/dashboard-stats', PalletStatsController::class);
+    Route::put('pallets/{pallet}/delivery-location', [DeliveryLocationController::class, 'update']);
     Route::post('pallets/{pallet}/overdue-invoice/send', [InvoiceController::class, 'sendOverduePalletInvoice']);
     Route::apiResource('pallets', PalletController::class);
     Route::post('pallets/{pallet}/photos', [PalletPhotoController::class, 'store']);
