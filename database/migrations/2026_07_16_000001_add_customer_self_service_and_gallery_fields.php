@@ -50,10 +50,12 @@ return new class extends Migration
             ->pluck('id');
         DB::table('pallets')->whereNotIn('current_status_id', $customerStatusIds)->update(['user_id' => null]);
 
-        DB::table('customer_details')
-            ->whereNull('street')
-            ->whereNotNull('delivery_address')
-            ->update(['street' => DB::raw('delivery_address')]);
+        if (Schema::hasColumn('customer_details', 'delivery_address')) {
+            DB::table('customer_details')
+                ->whereNull('street')
+                ->whereNotNull('delivery_address')
+                ->update(['street' => DB::raw('delivery_address')]);
+        }
     }
 
     public function down(): void

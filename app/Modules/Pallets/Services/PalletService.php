@@ -19,6 +19,8 @@ use Illuminate\Validation\ValidationException;
 
 class PalletService extends BaseCrudService
 {
+    private const SERVICE_ADDRESS = 'Nikole Tesle 71, 74000 Doboj';
+
     public function __construct(
         private readonly PalletRepository $palletRepository,
         private readonly UserRepository $userRepository,
@@ -34,17 +36,29 @@ class PalletService extends BaseCrudService
     {
         $this->ensureDependenciesAreActive($data);
 
-        return DB::transaction(function () use ($data, $actor): Pallet {
+        return DB::transaction(function () use ($data): Pallet {
             $attributes = $data->toArray();
             $attributes['user_id'] = $this->normalizedCustomerId($data);
             $attributes['last_status_changed_at'] = now();
+            $status = $this->statusRepository->findOrFail($data->currentStatusId);
+
+            if (in_array($status->slug, ['bih-nl-transport', 'nl-bih-transport'], true)) {
+                $attributes['current_location'] = 'Na putu';
+            } elseif ($status->slug === 'service') {
+                $attributes['current_location'] = self::SERVICE_ADDRESS;
+            } elseif ($this->customerAssignmentRule->statusAllowsCustomer($status)) {
+                $customer = $data->userId
+                    ? User::query()->with('customerDetail')->find($data->userId)
+                    : null;
+                $attributes['current_location'] = $customer?->customerDetail?->warehouseOneAddress()
+                    ?? $customer?->customerDetail?->businessAddress()
+                    ?? '';
+            }
 
             /** @var Pallet $pallet */
             $pallet = $this->palletRepository->create($attributes);
 
-            $this->trackableAssetService->recordCreation($pallet, $attributes, $actor);
-
-            return $pallet->load(['user.role', 'user.customerDetail', 'currentStatus']);
+            return $pallet->load(['user.role', 'user.customerDetail', 'currentStatus', 'deliveryLocation']);
         });
     }
 
@@ -56,7 +70,7 @@ class PalletService extends BaseCrudService
 
         $updatedPallet = DB::transaction(function () use ($pallet, $data, $actor, &$overdueInvoiceData): Pallet {
             $lockedPallet = $this->palletRepository->lockForUpdate($pallet->id);
-            $lockedPallet->loadMissing(['user.customerDetail', 'currentStatus']);
+            $lockedPallet->loadMissing(['user.customerDetail', 'currentStatus', 'deliveryLocation']);
             $originalAttributes = $lockedPallet->only(['user_id', 'current_status_id', 'current_location', 'qr_code']);
             $attributes = $data->toArray();
             $attributes['user_id'] = $this->normalizedCustomerId($data);
@@ -64,15 +78,24 @@ class PalletService extends BaseCrudService
 
             if (in_array($nextStatus->slug, ['bih-nl-transport', 'nl-bih-transport'], true)) {
                 $attributes['current_location'] = 'Na putu';
+            } elseif ($nextStatus->slug === 'service') {
+                $attributes['current_location'] = self::SERVICE_ADDRESS;
             }
 
             if ($this->customerAssignmentRule->statusAllowsCustomer($nextStatus)) {
                 $customer = $data->userId
                     ? User::query()->with('customerDetail')->find($data->userId)
                     : null;
-                $attributes['current_location'] = $customer?->customerDetail?->delivery_address
-                    ?: $customer?->customerDetail?->billing_address
-                    ?: '';
+                $customerAddress = $customer?->customerDetail?->warehouseOneAddress()
+                    ?? $customer?->customerDetail?->businessAddress()
+                    ?? '';
+                $requestedLocation = trim((string) ($attributes['current_location'] ?? ''));
+                $deliveryAddress = $this->deliveryLocationAddress($lockedPallet);
+                $attributes['current_location'] = in_array($nextStatus->slug, ['bij-de-klant', 'ophalen-klant'], true)
+                    && $deliveryAddress !== null
+                    && $requestedLocation === $deliveryAddress
+                        ? $deliveryAddress
+                        : $customerAddress;
             }
 
             $overdueInvoiceData = $this->overdueInvoiceData($lockedPallet, $data->currentStatusId);
@@ -91,7 +114,7 @@ class PalletService extends BaseCrudService
                 actor: $actor,
             );
 
-            return $updatedPallet->load(['user.role', 'user.customerDetail', 'currentStatus']);
+            return $updatedPallet->load(['user.role', 'user.customerDetail', 'currentStatus', 'deliveryLocation']);
         });
 
         if ($overdueInvoiceData !== null) {
@@ -177,6 +200,21 @@ class PalletService extends BaseCrudService
         $status = $this->statusRepository->findOrFail($data->currentStatusId);
 
         return $this->customerAssignmentRule->statusAllowsCustomer($status) ? $data->userId : null;
+    }
+
+    private function deliveryLocationAddress(Pallet $pallet): ?string
+    {
+        $location = $pallet->deliveryLocation;
+
+        if ($location === null) {
+            return null;
+        }
+
+        $streetLine = trim(implode(' ', array_filter([$location->street, $location->house_number])));
+        $localityLine = trim(implode(' ', array_filter([$location->postal_code, $location->city])));
+        $structuredAddress = implode(', ', array_filter([$streetLine, $localityLine]));
+
+        return $structuredAddress !== '' ? $structuredAddress : $location->formatted_address;
     }
 
     /**

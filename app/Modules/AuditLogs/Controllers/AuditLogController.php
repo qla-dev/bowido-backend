@@ -22,11 +22,16 @@ class AuditLogController extends ApiController
     public function index(ListAuditLogsRequest $request): JsonResponse
     {
         $this->authorize('viewAny', AuditLog::class);
+        $queryData = ListQueryData::fromRequest($request);
+        $result = $this->auditLogService->paginate($queryData, $request->user());
 
-        return $this->successCollection(
-            $this->auditLogService->paginate(ListQueryData::fromRequest($request), $request->user()),
-            AuditLogResource::class,
-            __('Audit logs retrieved successfully.'),
+        return $this->success(
+            data: AuditLogResource::collection($result->items)->resolve(),
+            message: __('Audit logs retrieved successfully.'),
+            meta: [
+                ...$result->meta(),
+                ...$this->auditLogService->summary($queryData, $request->user()),
+            ],
         );
     }
 

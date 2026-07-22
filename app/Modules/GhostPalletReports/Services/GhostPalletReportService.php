@@ -6,9 +6,7 @@ use App\Modules\GhostPalletReports\DTOs\GhostPalletReportData;
 use App\Modules\GhostPalletReports\Models\GhostPalletReport;
 use App\Modules\GhostPalletReports\Repositories\GhostPalletReportRepository;
 use App\Modules\Pallets\Repositories\PalletRepository;
-use App\Modules\Shared\Enums\AuditEventType;
 use App\Modules\Shared\Enums\GhostPalletReportStatus;
-use App\Modules\Shared\Services\AuditTrailService;
 use App\Modules\Shared\Services\BaseCrudService;
 use App\Modules\Users\Models\User;
 use App\Modules\Users\Repositories\UserRepository;
@@ -21,7 +19,6 @@ class GhostPalletReportService extends BaseCrudService
         private readonly GhostPalletReportRepository $ghostPalletReportRepository,
         private readonly PalletRepository $palletRepository,
         private readonly UserRepository $userRepository,
-        private readonly AuditTrailService $auditTrailService,
     ) {
         parent::__construct($ghostPalletReportRepository);
     }
@@ -57,7 +54,6 @@ class GhostPalletReportService extends BaseCrudService
     {
         return DB::transaction(function () use ($ghostPalletReport, $data, $actor): GhostPalletReport {
             $lockedGhostPalletReport = $this->ghostPalletReportRepository->lockForUpdate($ghostPalletReport->id);
-            $wasUnpaired = $lockedGhostPalletReport->paired_pallet_id === null;
             $userId = $data->userId ?? $lockedGhostPalletReport->user_id;
             /** @var User $user */
             $user = $this->userRepository->findOrFail($userId);
@@ -99,19 +95,6 @@ class GhostPalletReportService extends BaseCrudService
 
             /** @var GhostPalletReport $updatedGhostPalletReport */
             $updatedGhostPalletReport = $this->ghostPalletReportRepository->update($lockedGhostPalletReport, $attributes);
-
-            if ($updatedGhostPalletReport->paired_pallet_id !== null && $wasUnpaired) {
-                $this->auditTrailService->record(
-                    palletId: $updatedGhostPalletReport->paired_pallet_id,
-                    madeByUserId: $actor->id,
-                    eventType: AuditEventType::GhostPaired,
-                    note: $updatedGhostPalletReport->notes,
-                    context: [
-                        'ghost_pallet_report_id' => $updatedGhostPalletReport->id,
-                        'quantity' => $updatedGhostPalletReport->quantity,
-                    ],
-                );
-            }
 
             return $updatedGhostPalletReport->load(['user.role', 'pairedPallet.currentStatus']);
         });

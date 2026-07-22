@@ -2,6 +2,11 @@
 
 namespace App\Providers;
 
+use App\Modules\Locations\Contracts\LocationProviderInterface;
+use App\Modules\Locations\Providers\GeoapifyLocationProvider;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 use Symfony\Component\Process\Process;
@@ -15,7 +20,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(LocationProviderInterface::class, function (): LocationProviderInterface {
+            return match ((string) config('location.provider')) {
+                'geoapify' => new GeoapifyLocationProvider,
+                default => throw new \InvalidArgumentException('Unsupported location provider configured.'),
+            };
+        });
     }
 
     /**
@@ -24,6 +34,14 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Schema::defaultStringLength(191);
+
+        RateLimiter::for('reverse-geocoding', function (Request $request): Limit {
+            $key = $request->user()
+                ? 'user:'.$request->user()->getAuthIdentifier()
+                : 'ip:'.$request->ip();
+
+            return Limit::perMinute(max(1, (int) config('location.rate_limit_per_minute', 30)))->by($key);
+        });
 
         $this->startFrontendDevServerForArtisanServe();
     }

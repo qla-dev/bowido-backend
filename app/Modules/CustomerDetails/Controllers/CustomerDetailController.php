@@ -51,9 +51,13 @@ class CustomerDetailController extends ApiController
         abort_unless($user->isCustomer(), 403);
 
         $detail = DB::transaction(function () use ($request, $user): CustomerDetail {
+            $validated = $request->validated();
+            if (array_key_exists('phone_number', $validated)) {
+                $user->update(['phone_number' => $validated['phone_number']]);
+            }
             $attributes = [
                 ...($user->customerDetail?->toArray() ?? []),
-                ...$request->validated(),
+                ...$validated,
                 'user_id' => $user->id,
                 'default_price_per_day' => $user->customerDetail?->default_price_per_day ?? 2,
                 'grace_period_days' => $user->customerDetail?->grace_period_days ?? 14,
