@@ -17,13 +17,21 @@ class PalletResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $currentClientName = $this->relationLoaded('user')
+            ? $this->user?->customerDetail?->company_name ?? $this->user?->name
+            : null;
+        $deletedClientName = is_array($this->metadata)
+            ? ($this->metadata['deleted_client_name'] ?? null)
+            : null;
+
         return [
             'id' => $this->id,
             'user_id' => $this->user_id,
             'current_status_id' => $this->current_status_id,
             'current_status_name' => $this->whenLoaded('currentStatus', fn (): ?string => $this->currentStatus?->name),
             'current_status_slug' => $this->whenLoaded('currentStatus', fn (): ?string => $this->currentStatus?->slug),
-            'client_name' => $this->whenLoaded('user', fn (): ?string => $this->user?->customerDetail?->company_name ?? $this->user?->name),
+            'client_name' => $currentClientName ?? $deletedClientName,
+            'client_deleted' => $this->user_id === null && is_string($deletedClientName) && $deletedClientName !== '',
             'type' => $this->type ?? $this->asset_type,
             'asset_type' => $this->asset_type,
             'qr_code' => $this->qr_code,
