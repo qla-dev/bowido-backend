@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Modules\CustomerDetails\Models\CustomerDetail;
+use App\Modules\CustomerDetails\Support\CustomerImportExceptions;
 use App\Modules\Roles\Models\Role;
 use App\Modules\Users\Models\User;
 use Illuminate\Console\Command;
@@ -44,11 +45,26 @@ class ImportCustomersFromKvkWorkbook extends Command
             $warehouse1Street = $this->value($row, 15);
             $warehouse1City = $this->value($row, 16);
             DB::transaction(function () use ($kvk, $company, $email, $mobile, $fixedPhone, $street, $houseNumber, $postalCode, $city, $warehouse1PostalCode, $warehouse1HouseNumber, $warehouse1Street, $warehouse1City, $roleId, $unregisteredPassword, &$created, &$updated): void {
-                $detail = CustomerDetail::query()->with('user')->whereRaw("replace(replace(replace(kvk, ' ', ''), '.', ''), '-', '') = ?", [$this->normalizeKvk($kvk)])->first();
+                $detailQuery = CustomerDetail::query()
+                    ->with('user')
+                    ->whereRaw(
+                        "lower(replace(replace(replace(kvk, ' ', ''), '.', ''), '-', '')) = ?",
+                        [$this->normalizeKvk($kvk)],
+                    );
+
+                if (CustomerImportExceptions::allowsSharedKvk($kvk)) {
+                    $detailQuery->where('company_name', $company);
+                }
+
+                $detail = $detailQuery->first();
                 $user = $detail?->user;
                 $loginEmail = filter_var($email, FILTER_VALIDATE_EMAIL)
                     ? $email
-                    : "kvk.{$this->normalizeKvk($kvk)}@trackpal.invalid";
+                    : sprintf(
+                        'kvk.%s.%s@trackpal.invalid',
+                        $this->normalizeKvk($kvk),
+                        substr(sha1(strtolower($company)), 0, 10),
+                    );
                 if (! $user) {
                     $user = User::query()->create(['role_id' => $roleId, 'name' => $company, 'email' => $loginEmail, 'phone_number' => $mobile ?: null, 'password' => $unregisteredPassword, 'is_active' => true]);
                 } else {
@@ -102,8 +118,68 @@ class ImportCustomersFromKvkWorkbook extends Command
         });
     }
 
-    private function rows(string $path): array { $zip = new ZipArchive; if ($zip->open($path) !== true) throw new \RuntimeException("Cannot open {$path}"); $shared=[]; if (($xml=$zip->getFromName('xl/sharedStrings.xml')) !== false) { $s=new \SimpleXMLElement($xml); foreach ($s->si as $item) $shared[]=(string)$item->t ?: implode('', array_map('strval', iterator_to_array($item->r))); } $sheet=new \SimpleXMLElement((string)$zip->getFromName('xl/worksheets/sheet1.xml')); $out=[]; foreach ($sheet->sheetData->row as $row) { $values=[]; foreach ($row->c as $cell) { preg_match('/([A-Z]+)/', (string)$cell['r'], $m); $col=0; foreach (str_split($m[1]) as $char) $col=$col*26+ord($char)-64; $values[$col-1]=(string)$cell['t']==='s' ? ($shared[(int)$cell->v] ?? '') : (string)$cell->v; } $out[]=$values; } return array_slice($out, 2); }
+    private function rows(string $path): array
+    {
+        if (! is_file($path)) {
+            throw new \RuntimeException("Workbook not found: {$path}");
+        }
+
+        $snapshot = tempnam(sys_get_temp_dir(), 'trackpal-kvk-');
+        if ($snapshot === false || ! copy($path, $snapshot)) {
+            throw new \RuntimeException("Cannot create a readable snapshot of {$path}");
+        }
+
+        $zip = new ZipArchive;
+
+        try {
+            if ($zip->open($snapshot) !== true) {
+                throw new \RuntimeException("Cannot open {$path}");
+            }
+
+            $shared = [];
+            if (($xml = $zip->getFromName('xl/sharedStrings.xml')) !== false) {
+                $strings = new \SimpleXMLElement($xml);
+                foreach ($strings->si as $item) {
+                    $text = '';
+                    foreach ($item->xpath('.//*[local-name()="t"]') ?: [] as $node) {
+                        $text .= (string) $node;
+                    }
+                    $shared[] = $text;
+                }
+            }
+
+            $sheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
+            if ($sheetXml === false) {
+                throw new \RuntimeException('The workbook does not contain the expected first worksheet.');
+            }
+
+            $sheet = new \SimpleXMLElement($sheetXml);
+            $out = [];
+            foreach ($sheet->sheetData->row as $row) {
+                $values = [];
+                foreach ($row->c as $cell) {
+                    preg_match('/([A-Z]+)/', (string) $cell['r'], $matches);
+                    $column = 0;
+                    foreach (str_split($matches[1] ?? '') as $character) {
+                        $column = $column * 26 + ord($character) - 64;
+                    }
+
+                    $values[$column - 1] = (string) $cell['t'] === 's'
+                        ? ($shared[(int) $cell->v] ?? '')
+                        : (string) $cell->v;
+                }
+                $out[] = $values;
+            }
+
+            return array_slice($out, 2);
+        } finally {
+            $zip->close();
+            @unlink($snapshot);
+        }
+    }
     private function value(array $row, int $column): string { return trim((string)($row[$column] ?? '')); }
-    private function normalizeKvk(string $value): string { return preg_replace('/[\s.-]+/', '', $value) ?: ''; }
-    private function address(string $street, string $number, string $postal, string $city): string { return trim(implode(', ', array_filter([trim("{$street} {$number}"), trim("{$postal} {$city}")]))); }
+    private function normalizeKvk(string $value): string
+    {
+        return CustomerImportExceptions::normalizeKvk($value);
+    }
 }

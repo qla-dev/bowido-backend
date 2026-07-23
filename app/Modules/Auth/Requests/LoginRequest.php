@@ -15,6 +15,7 @@ class LoginRequest extends ApiFormRequest
             'login_type' => ['sometimes', 'string', 'in:user,customer'],
             'email' => ['required_without:kvk', 'required_if:login_type,user', 'nullable', 'email', 'max:255'],
             'kvk' => ['required_if:login_type,customer', 'nullable', 'string', 'max:255'],
+            'customer_detail_id' => ['nullable', 'integer', 'min:1'],
             'password' => ['required', 'string'],
             'token_name' => ['sometimes', 'string', 'max:255'],
         ];

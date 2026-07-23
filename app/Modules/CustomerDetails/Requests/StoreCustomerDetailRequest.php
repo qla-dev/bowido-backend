@@ -2,17 +2,23 @@
 
 namespace App\Modules\CustomerDetails\Requests;
 
+use App\Modules\CustomerDetails\Support\CustomerImportExceptions;
 use App\Modules\Shared\Http\Requests\ApiFormRequest;
 
 class StoreCustomerDetailRequest extends ApiFormRequest
 {
     public function rules(): array
     {
+        $kvkRules = ['nullable', 'string', 'max:255'];
+        if (! CustomerImportExceptions::allowsSharedKvk($this->input('kvk'))) {
+            $kvkRules[] = 'unique:customer_details,kvk';
+        }
+
         return [
             'user_id' => ['required', 'integer', 'exists:users,id', 'unique:customer_details,user_id'],
             'company_name' => ['required', 'string', 'max:255'],
             'country' => ['nullable', 'string', 'max:255'],
-            'kvk' => ['nullable', 'string', 'max:255', 'unique:customer_details,kvk'],
+            'kvk' => $kvkRules,
             'billing_email' => ['nullable', 'email', 'max:255'],
             'fixed_phone' => ['nullable', 'string', 'max:255'],
             'street' => ['nullable', 'string', 'max:255'],

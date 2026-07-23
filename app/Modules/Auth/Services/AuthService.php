@@ -50,7 +50,7 @@ class AuthService
 
         try {
             $user = $data->loginType === 'customer'
-                ? $this->userRepository->findByKvkForAuth((string) $data->kvk)
+                ? $this->userRepository->findByKvkForAuth((string) $data->kvk, $data->customerDetailId)
                 : $this->userRepository->findByEmailForAuth((string) $data->email);
 
             AuthLoginLogger::info('Auth login user lookup completed.', array_merge(
@@ -369,6 +369,7 @@ class AuthService
             'email_hash' => $this->hashedValue((string) $data->email),
             'has_kvk' => is_string($data->kvk) && trim($data->kvk) !== '',
             'kvk_hash' => $this->hashedValue($this->normalizedKvk((string) $data->kvk)),
+            'has_customer_selection' => $data->customerDetailId !== null,
             'token_name' => Str::limit($data->tokenName, 100),
         ];
     }

@@ -8,6 +8,7 @@ readonly class LoginData
         public string $loginType,
         public ?string $email,
         public ?string $kvk,
+        public ?int $customerDetailId,
         public string $password,
         public string $tokenName,
     ) {
@@ -25,6 +26,7 @@ readonly class LoginData
             loginType: $loginType,
             email: isset($attributes['email']) ? strtolower(trim((string) $attributes['email'])) : null,
             kvk: isset($attributes['kvk']) ? trim((string) $attributes['kvk']) : null,
+            customerDetailId: isset($attributes['customer_detail_id']) ? (int) $attributes['customer_detail_id'] : null,
             password: (string) $attributes['password'],
             tokenName: trim((string) ($attributes['token_name'] ?? 'api-token')),
         );

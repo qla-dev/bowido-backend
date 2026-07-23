@@ -100,7 +100,7 @@ class UserRepository extends BaseRepository
             ->first();
     }
 
-    public function findByKvkForAuth(string $kvk): ?User
+    public function findByKvkForAuth(string $kvk, ?int $customerDetailId = null): ?User
     {
         $normalizedKvk = strtolower((string) preg_replace('/[\s.-]+/', '', trim($kvk)));
 
@@ -111,6 +111,10 @@ class UserRepository extends BaseRepository
         $customerDetail = CustomerDetail::query()
             ->with(['user.role', 'user.customerDetail'])
             ->where('is_active', true)
+            ->when(
+                $customerDetailId !== null,
+                fn (Builder $query) => $query->whereKey($customerDetailId),
+            )
             ->whereRaw(
                 "lower(replace(replace(replace(kvk, ' ', ''), '.', ''), '-', '')) = ?",
                 [$normalizedKvk],
