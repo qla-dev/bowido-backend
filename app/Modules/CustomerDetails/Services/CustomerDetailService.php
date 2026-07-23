@@ -5,6 +5,7 @@ namespace App\Modules\CustomerDetails\Services;
 use App\Modules\CustomerDetails\DTOs\CustomerDetailData;
 use App\Modules\CustomerDetails\Models\CustomerDetail;
 use App\Modules\CustomerDetails\Repositories\CustomerDetailRepository;
+use App\Modules\Pallets\Models\Pallet;
 use App\Modules\Shared\Services\BaseCrudService;
 use App\Modules\Users\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -36,9 +37,20 @@ class CustomerDetailService extends BaseCrudService
     {
         DB::transaction(function () use ($customerDetail): void {
             $userId = $customerDetail->user_id;
+            $clientName = $customerDetail->company_name ?: $customerDetail->user?->name;
 
-            // Keep operational history, but detach it from the deleted client account.
-            DB::table('pallets')->where('user_id', $userId)->update(['user_id' => null]);
+            // Keep operational history and show the former client in pallet tracking.
+            Pallet::query()
+                ->where('user_id', $userId)
+                ->eachById(function (Pallet $pallet) use ($clientName): void {
+                    $metadata = is_array($pallet->metadata) ? $pallet->metadata : [];
+                    $metadata['deleted_client_name'] = $clientName;
+
+                    $pallet->update([
+                        'user_id' => null,
+                        'metadata' => $metadata,
+                    ]);
+                });
             DB::table('invoices')->where('user_id', $userId)->update(['user_id' => null]);
             DB::table('ghost_pallet_reports')->where('user_id', $userId)->update(['user_id' => null]);
             DB::table('pallet_photos')->where('client_id', $userId)->update(['client_id' => null]);
