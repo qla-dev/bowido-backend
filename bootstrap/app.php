@@ -118,9 +118,7 @@ return Application::configure(basePath: dirname(__DIR__))
             report($exception);
 
             return response()->json([
-                'message' => (bool) config('app.debug')
-                    ? $exception->getMessage()
-                    : __('An unexpected error occurred.'),
+                'message' => __('An unexpected error occurred.'),
                 'data' => null,
                 'meta' => [],
                 'errors' => [],

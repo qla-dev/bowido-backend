@@ -60,6 +60,9 @@ class CustomerDetailService extends BaseCrudService
             DB::table('service_reports')->where('reported_by_user_id', $userId)->delete();
             DB::table('calendar_notes')->where('created_by_user_id', $userId)->delete();
 
+            // Delete the detail explicitly before its user so this also cleans up
+            // legacy imported rows if foreign-key checks were previously disabled.
+            $customerDetail->delete();
             User::query()->whereKey($userId)->delete();
         });
     }
