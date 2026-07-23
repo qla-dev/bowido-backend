@@ -2,6 +2,7 @@
 
 namespace App\Modules\CustomerDetails\Requests;
 
+use App\Modules\CustomerDetails\Support\CustomerImportExceptions;
 use App\Modules\Shared\Http\Requests\ApiFormRequest;
 use Illuminate\Validation\Rule;
 
@@ -10,10 +11,14 @@ class UpsertMyCustomerDetailRequest extends ApiFormRequest
     public function rules(): array
     {
         $detailId = $this->user()?->customerDetail?->id;
+        $kvkRules = ['required', 'string', 'max:255'];
+        if (! CustomerImportExceptions::allowsSharedKvk($this->input('kvk'))) {
+            $kvkRules[] = Rule::unique('customer_details', 'kvk')->ignore($detailId);
+        }
 
         return [
             'company_name' => ['required', 'string', 'max:255'],
-            'kvk' => ['required', 'string', 'max:255', Rule::unique('customer_details', 'kvk')->ignore($detailId)],
+            'kvk' => $kvkRules,
             'phone_number' => ['nullable', 'string', 'max:255'],
             'fixed_phone' => ['required', 'string', 'max:50'],
             'billing_email' => ['required', 'email', 'max:255'],

@@ -7,6 +7,7 @@ use App\Modules\Auth\DTOs\RegisterData;
 use App\Modules\Auth\Requests\LoginRequest;
 use App\Modules\Auth\Requests\RegisterRequest;
 use App\Modules\Auth\Services\AuthService;
+use App\Modules\CustomerDetails\Support\CustomerImportExceptions;
 use App\Modules\Shared\Http\Controllers\ApiController;
 use App\Modules\Users\Models\User;
 use App\Modules\Users\Resources\UserResource;
@@ -25,7 +26,36 @@ class AuthController extends ApiController
 
     public function login(LoginRequest $request): JsonResponse
     {
-        $result = $this->authService->login(LoginData::fromArray($request->validated()), $request);
+        $loginData = LoginData::fromArray($request->validated());
+
+        if ($loginData->loginType === 'customer' && $loginData->customerDetailId === null) {
+            $normalizedKvk = preg_replace('/[\s.-]+/', '', trim((string) $loginData->kvk));
+            $companies = CustomerDetail::query()
+                ->where('customer_details.is_active', true)
+                ->whereHas('user', fn ($query) => $query->where('is_active', true))
+                ->whereRaw(
+                    "lower(replace(replace(replace(kvk, ' ', ''), '.', ''), '-', '')) = ?",
+                    [strtolower((string) $normalizedKvk)],
+                )
+                ->orderBy('company_name')
+                ->get(['id', 'company_name']);
+
+            if ($companies->count() > 1) {
+                return $this->success(
+                    data: [
+                        'code' => 'company_selection_required',
+                        'companies' => $companies->map(fn (CustomerDetail $detail) => [
+                            'customer_detail_id' => $detail->id,
+                            'company_name' => $detail->company_name,
+                        ])->values(),
+                    ],
+                    message: __('Choose your company to continue.'),
+                    status: 409,
+                );
+            }
+        }
+
+        $result = $this->authService->login($loginData, $request);
 
         return $this->success([
             'token' => $result['token'],
@@ -130,7 +160,8 @@ class AuthController extends ApiController
         $user = DB::transaction(function () use ($data, $kvk): User {
             $detail = CustomerDetail::query()->with('user')->lockForUpdate()->whereRaw("replace(replace(replace(kvk, ' ', ''), '.', ''), '-', '') = ?", [$kvk])->first();
             if (! $detail) throw ValidationException::withMessages(['kvk' => [__('KVK number was not found.')]]);
-            $emailTaken = User::query()->where('email', strtolower($data['email']))->whereKeyNot($detail->user_id)->exists();
+            $emailTaken = ! CustomerImportExceptions::allowsSharedEmail($data['email'])
+                && User::query()->where('email', strtolower($data['email']))->whereKeyNot($detail->user_id)->exists();
             if ($emailTaken) throw ValidationException::withMessages(['email' => [__('This email address is already in use.')]]);
             $phoneTaken = filled($data['phone_number'] ?? null) && User::query()->where('phone_number', $data['phone_number'])->whereKeyNot($detail->user_id)->exists();
             if ($phoneTaken) throw ValidationException::withMessages(['phone_number' => [__('This phone number is already in use.')]]);

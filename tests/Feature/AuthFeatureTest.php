@@ -382,6 +382,73 @@ class AuthFeatureTest extends TestCase
         $this->assertDatabaseCount('api_tokens', 1);
     }
 
+    public function test_customer_with_shared_kvk_must_choose_company_before_login(): void
+    {
+        $firstUser = $this->makeUser('customer', [
+            'email' => 'bouwmaat-dordrecht@example.com',
+            'password' => 'first-password',
+        ]);
+        $secondUser = $this->makeUser('customer', [
+            'email' => 'bme-bouwmaten@example.com',
+            'password' => 'second-password',
+        ]);
+
+        $firstDetail = CustomerDetail::factory()->create([
+            'user_id' => $firstUser->id,
+            'company_name' => 'Bouwmaat Dordrecht',
+            'kvk' => '24172907',
+            'is_active' => true,
+        ]);
+        $secondDetail = CustomerDetail::factory()->create([
+            'user_id' => $secondUser->id,
+            'company_name' => 'BME Bouwmaten Nederland B.V.',
+            'kvk' => '24172907',
+            'is_active' => true,
+        ]);
+
+        $selectionResponse = $this
+            ->withHeader('X-Trackpal-Token-Only', 'true')
+            ->postJson('/api/auth/login', [
+                'login_type' => 'customer',
+                'kvk' => '24.172.907',
+                'password' => 'second-password',
+                'token_name' => 'feature-test',
+            ]);
+
+        $selectionResponse
+            ->assertStatus(409)
+            ->assertJsonPath('data.code', 'company_selection_required')
+            ->assertJsonCount(2, 'data.companies')
+            ->assertJsonFragment([
+                'customer_detail_id' => $firstDetail->id,
+                'company_name' => 'Bouwmaat Dordrecht',
+            ])
+            ->assertJsonFragment([
+                'customer_detail_id' => $secondDetail->id,
+                'company_name' => 'BME Bouwmaten Nederland B.V.',
+            ]);
+
+        $this->assertDatabaseCount('api_tokens', 0);
+
+        $loginResponse = $this
+            ->withHeader('X-Trackpal-Token-Only', 'true')
+            ->postJson('/api/auth/login', [
+                'login_type' => 'customer',
+                'kvk' => '24172907',
+                'customer_detail_id' => $secondDetail->id,
+                'password' => 'second-password',
+                'token_name' => 'feature-test',
+            ]);
+
+        $loginResponse
+            ->assertOk()
+            ->assertJsonPath('data.user.email', 'bme-bouwmaten@example.com')
+            ->assertJsonPath('data.user.customer_detail.company_name', 'BME Bouwmaten Nederland B.V.');
+
+        $this->assertNotNull($loginResponse->json('data.token'));
+        $this->assertDatabaseCount('api_tokens', 1);
+    }
+
     public function test_invalid_credentials_are_rejected(): void
     {
         $authLogPath = storage_path('logs/laravel.log');

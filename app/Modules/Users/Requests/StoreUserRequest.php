@@ -2,6 +2,7 @@
 
 namespace App\Modules\Users\Requests;
 
+use App\Modules\CustomerDetails\Support\CustomerImportExceptions;
 use App\Modules\Shared\Http\Requests\ApiFormRequest;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Support\Facades\Log;
@@ -22,17 +23,27 @@ class StoreUserRequest extends ApiFormRequest
 
     public function rules(): array
     {
+        $emailRules = ['required', 'email', 'max:255'];
+        if (! CustomerImportExceptions::allowsSharedEmail($this->input('email'))) {
+            $emailRules[] = 'unique:users,email';
+        }
+
+        $kvkRules = ['nullable', 'string', 'max:255'];
+        if (! CustomerImportExceptions::allowsSharedKvk($this->input('customer_details.kvk'))) {
+            $kvkRules[] = 'unique:customer_details,kvk';
+        }
+
         return [
             'role_id' => ['required', 'integer', 'exists:roles,id'],
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'email' => $emailRules,
             'phone_number' => ['nullable', 'string', 'max:255', 'unique:users,phone_number'],
             'password' => ['required', 'string', 'min:8'],
             'is_active' => ['sometimes', 'boolean'],
             'customer_details' => ['sometimes', 'array'],
             'customer_details.company_name' => ['required_with:customer_details', 'string', 'max:255'],
             'customer_details.country' => ['nullable', 'string', 'max:255'],
-            'customer_details.kvk' => ['nullable', 'string', 'max:255', 'unique:customer_details,kvk'],
+            'customer_details.kvk' => $kvkRules,
             'customer_details.billing_email' => ['nullable', 'email', 'max:255'],
             'customer_details.street' => ['nullable', 'string', 'max:255'],
             'customer_details.house_number' => ['nullable', 'string', 'max:255'],

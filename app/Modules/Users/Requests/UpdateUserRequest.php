@@ -2,6 +2,7 @@
 
 namespace App\Modules\Users\Requests;
 
+use App\Modules\CustomerDetails\Support\CustomerImportExceptions;
 use App\Modules\Shared\Http\Requests\ApiFormRequest;
 use Illuminate\Validation\Rule;
 
@@ -10,11 +11,15 @@ class UpdateUserRequest extends ApiFormRequest
     public function rules(): array
     {
         $userId = $this->route('user')?->id;
+        $emailRules = ['sometimes', 'email', 'max:255'];
+        if (! CustomerImportExceptions::allowsSharedEmail($this->input('email'))) {
+            $emailRules[] = Rule::unique('users', 'email')->ignore($userId);
+        }
 
         return [
             'role_id' => ['sometimes', 'integer', 'exists:roles,id'],
             'name' => ['sometimes', 'string', 'max:255'],
-            'email' => ['sometimes', 'email', 'max:255', Rule::unique('users', 'email')->ignore($userId)],
+            'email' => $emailRules,
             'phone_number' => ['nullable', 'string', 'max:255', Rule::unique('users', 'phone_number')->ignore($userId)],
             'password' => ['nullable', 'string', 'min:8'],
             'is_active' => ['sometimes', 'boolean'],

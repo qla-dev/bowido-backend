@@ -2,6 +2,7 @@
 
 namespace App\Modules\CustomerDetails\Requests;
 
+use App\Modules\CustomerDetails\Support\CustomerImportExceptions;
 use App\Modules\Shared\Http\Requests\ApiFormRequest;
 use Illuminate\Validation\Rule;
 
@@ -10,12 +11,16 @@ class UpdateCustomerDetailRequest extends ApiFormRequest
     public function rules(): array
     {
         $customerDetailId = $this->route('customerDetail')?->id;
+        $kvkRules = ['nullable', 'string', 'max:255'];
+        if (! CustomerImportExceptions::allowsSharedKvk($this->input('kvk'))) {
+            $kvkRules[] = Rule::unique('customer_details', 'kvk')->ignore($customerDetailId);
+        }
 
         return [
             'user_id' => ['sometimes', 'integer', 'exists:users,id', Rule::unique('customer_details', 'user_id')->ignore($customerDetailId)],
             'company_name' => ['sometimes', 'string', 'max:255'],
             'country' => ['nullable', 'string', 'max:255'],
-            'kvk' => ['nullable', 'string', 'max:255', Rule::unique('customer_details', 'kvk')->ignore($customerDetailId)],
+            'kvk' => $kvkRules,
             'billing_email' => ['nullable', 'email', 'max:255'],
             'fixed_phone' => ['nullable', 'string', 'max:255'],
             'street' => ['nullable', 'string', 'max:255'],
