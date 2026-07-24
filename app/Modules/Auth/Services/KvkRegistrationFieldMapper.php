@@ -15,6 +15,7 @@ class KvkRegistrationFieldMapper
             'kvk' => $this->value($detail->kvk),
             'name' => $this->value($user?->name) ?? $this->value($detail->company_name),
             'country' => $this->countryCode($detail->country),
+            'email' => $this->value($user?->email) ?? $this->value($detail->billing_email),
             'phone_number' => $this->value($user?->phone_number),
             'fixed_phone' => $this->value($detail->fixed_phone),
             'street' => $this->value($detail->street),
@@ -44,6 +45,14 @@ class KvkRegistrationFieldMapper
                 data_get($profile, '_embedded.hoofdvestiging.eersteHandelsnaam'),
                 data_get($profile, 'handelsnamen.0.naam'),
                 data_get($profile, 'handelsnaam'),
+            ]),
+            'email' => $this->firstValue([
+                data_get($profile, 'email'),
+                data_get($profile, 'emailadres'),
+                data_get($profile, 'communicatie.email'),
+                data_get($profile, 'communicatie.emailadres'),
+                data_get($profile, 'communicatiegegevens.email'),
+                data_get($profile, 'communicatiegegevens.emailadres'),
             ]),
             'country' => $this->countryCode($this->firstValue([
                 data_get($address, 'land'),

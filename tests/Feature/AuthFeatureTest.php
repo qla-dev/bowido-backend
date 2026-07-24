@@ -62,6 +62,7 @@ class AuthFeatureTest extends TestCase
             'api.test.kvk/*' => Http::response([
                 'kvkNummer' => '12345678',
                 'naam' => 'KVK Company B.V.',
+                'emailadres' => 'contact@kvk-company.example',
                 '_embedded' => [
                     'hoofdvestiging' => [
                         'eersteHandelsnaam' => 'Fallback trade name',
@@ -84,6 +85,7 @@ class AuthFeatureTest extends TestCase
             ->assertJsonPath('data.source', 'kvk')
             ->assertJsonPath('data.fields.kvk', '12345678')
             ->assertJsonPath('data.fields.name', 'KVK Company B.V.')
+            ->assertJsonPath('data.fields.email', 'contact@kvk-company.example')
             ->assertJsonPath('data.fields.street', 'KVK Straat')
             ->assertJsonPath('data.fields.country', 'NL')
             ->assertJsonPath('data.fields.house_number', '12')
