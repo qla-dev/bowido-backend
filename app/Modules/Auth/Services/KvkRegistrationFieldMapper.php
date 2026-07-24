@@ -15,7 +15,6 @@ class KvkRegistrationFieldMapper
             'kvk' => $this->value($detail->kvk),
             'name' => $this->value($user?->name) ?? $this->value($detail->company_name),
             'country' => $this->countryCode($detail->country),
-            'email' => $this->value($user?->email) ?? $this->value($detail->billing_email),
             'phone_number' => $this->value($user?->phone_number),
             'fixed_phone' => $this->value($detail->fixed_phone),
             'street' => $this->value($detail->street),
