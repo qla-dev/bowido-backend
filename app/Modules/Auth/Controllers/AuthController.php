@@ -4,9 +4,12 @@ namespace App\Modules\Auth\Controllers;
 
 use App\Modules\Auth\DTOs\LoginData;
 use App\Modules\Auth\DTOs\RegisterData;
+use App\Modules\Auth\Exceptions\KvkLookupException;
+use App\Modules\Auth\Requests\KvkLookupRequest;
 use App\Modules\Auth\Requests\LoginRequest;
 use App\Modules\Auth\Requests\RegisterRequest;
 use App\Modules\Auth\Services\AuthService;
+use App\Modules\Auth\Services\KvkCompanyLookupService;
 use App\Modules\CustomerDetails\Support\CustomerImportExceptions;
 use App\Modules\Shared\Http\Controllers\ApiController;
 use App\Modules\Users\Models\User;
@@ -20,7 +23,10 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends ApiController
 {
-    public function __construct(private readonly AuthService $authService)
+    public function __construct(
+        private readonly AuthService $authService,
+        private readonly KvkCompanyLookupService $kvkCompanyLookupService,
+    )
     {
     }
 
@@ -107,39 +113,47 @@ class AuthController extends ApiController
         );
     }
 
-    public function kvkLookup(Request $request): JsonResponse
+    public function kvkLookup(KvkLookupRequest $request): JsonResponse
     {
-        $validated = $request->validate(['kvk' => ['required', 'string', 'max:255']]);
-        $kvk = preg_replace('/[\s.-]+/', '', trim($validated['kvk']));
-        $detail = CustomerDetail::query()->with('user')->whereRaw("replace(replace(replace(kvk, ' ', ''), '.', ''), '-', '') = ?", [$kvk])->first();
-        if (! $detail) throw ValidationException::withMessages(['kvk' => [__('KVK number was not found.')]]);
+        $kvk = $request->validated('kvk');
+
+        try {
+            $result = $this->kvkCompanyLookupService->lookup($kvk);
+        } catch (KvkLookupException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'data' => null,
+                'meta' => [],
+                'errors' => [],
+            ], $exception->httpStatus);
+        }
+
+        if ($result['source'] === 'not_found') {
+            return response()->json([
+                'message' => __('No company was found for this KVK number.'),
+                'data' => ['source' => 'kvk', 'fields' => []],
+                'meta' => [],
+                'errors' => [],
+            ], 404);
+        }
+
         return $this->success([
-            'company_name' => $detail->company_name,
-            'kvk' => $detail->kvk,
-            'email' => $detail->billing_email,
-            'phone_number' => $detail->user?->phone_number,
-            'fixed_phone' => $detail->fixed_phone,
-            'street' => $detail->street,
-            'house_number' => $detail->house_number,
-            'postal_code' => $detail->postal_code,
-            'city' => $detail->city,
-            'warehouse1_street' => $detail->warehouse1_street,
-            'warehouse1_house_number' => $detail->warehouse1_house_number,
-            'warehouse1_postal_code' => $detail->warehouse1_postal_code,
-            'warehouse1_city' => $detail->warehouse1_city,
-            'warehouse2_street' => $detail->warehouse2_street,
-            'warehouse2_house_number' => $detail->warehouse2_house_number,
-            'warehouse2_postal_code' => $detail->warehouse2_postal_code,
-            'warehouse2_city' => $detail->warehouse2_city,
+            'source' => $result['source'],
+            'fields' => $result['fields'],
         ], __('Customer details found.'));
     }
 
     public function registerByKvk(Request $request): JsonResponse
     {
+        $request->merge([
+            'kvk' => preg_replace('/[\s.\-\/()]+/', '', trim((string) $request->input('kvk'))),
+        ]);
+
         $data = $request->validate([
-            'kvk' => ['required', 'string', 'max:255'],
+            'kvk' => ['required', 'string', 'regex:/^\d{8}$/'],
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],
+            'country' => ['nullable', 'string', 'max:255'],
             'phone_number' => ['nullable', 'string', 'max:255'],
             'fixed_phone' => ['nullable', 'string', 'max:50'],
             'street' => ['nullable', 'string', 'max:255'],
@@ -159,15 +173,19 @@ class AuthController extends ApiController
         $kvk = preg_replace('/[\s.-]+/', '', trim($data['kvk']));
         $user = DB::transaction(function () use ($data, $kvk): User {
             $detail = CustomerDetail::query()->with('user')->lockForUpdate()->whereRaw("replace(replace(replace(kvk, ' ', ''), '.', ''), '-', '') = ?", [$kvk])->first();
-            if (! $detail) throw ValidationException::withMessages(['kvk' => [__('KVK number was not found.')]]);
+            if ($detail === null) throw ValidationException::withMessages(['kvk' => [__('KVK number was not found.')]]);
+            $existingUserId = $detail->user_id;
             $emailTaken = ! CustomerImportExceptions::allowsSharedEmail($data['email'])
-                && User::query()->where('email', strtolower($data['email']))->whereKeyNot($detail->user_id)->exists();
+                && User::query()->where('email', strtolower($data['email']))->when($existingUserId, fn ($query) => $query->whereKeyNot($existingUserId))->exists();
             if ($emailTaken) throw ValidationException::withMessages(['email' => [__('This email address is already in use.')]]);
-            $phoneTaken = filled($data['phone_number'] ?? null) && User::query()->where('phone_number', $data['phone_number'])->whereKeyNot($detail->user_id)->exists();
+            $phoneTaken = filled($data['phone_number'] ?? null) && User::query()->where('phone_number', $data['phone_number'])->when($existingUserId, fn ($query) => $query->whereKeyNot($existingUserId))->exists();
             if ($phoneTaken) throw ValidationException::withMessages(['phone_number' => [__('This phone number is already in use.')]]);
-            $detail->user->update(['name' => $data['name'], 'email' => strtolower($data['email']), 'phone_number' => $data['phone_number'] ?: null, 'password' => Hash::make($data['password']), 'is_active' => true]);
-            $detail->update([
+            $user = $detail->user;
+            $user->update(['name' => $data['name'], 'email' => strtolower($data['email']), 'phone_number' => $data['phone_number'] ?: null, 'password' => Hash::make($data['password']), 'is_active' => true]);
+
+            $detail->fill([
                 'company_name' => $data['name'],
+                'country' => $data['country'] ?: null,
                 'billing_email' => strtolower($data['email']),
                 'fixed_phone' => $data['fixed_phone'] ?: null,
                 'street' => $data['street'] ?: null,
@@ -183,8 +201,9 @@ class AuthController extends ApiController
                 'warehouse2_postal_code' => $data['warehouse2_postal_code'] ?: null,
                 'warehouse2_city' => $data['warehouse2_city'] ?: null,
                 'is_active' => true,
-            ]);
-            return $detail->user->fresh(['role', 'customerDetail']);
+            ])->save();
+
+            return $user->fresh(['role', 'customerDetail']);
         });
         return $this->success((new UserResource($user))->resolve(), __('Registration successful.'), status: 201);
     }

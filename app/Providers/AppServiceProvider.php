@@ -43,6 +43,14 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(max(1, (int) config('location.rate_limit_per_minute', 30)))->by($key);
         });
 
+        RateLimiter::for('location-search', function (Request $request): Limit {
+            $key = $request->user()
+                ? 'user:'.$request->user()->getAuthIdentifier()
+                : 'ip:'.$request->ip();
+
+            return Limit::perMinute(max(1, (int) config('location.rate_limit_per_minute', 30)))->by($key);
+        });
+
         $this->startFrontendDevServerForArtisanServe();
     }
 

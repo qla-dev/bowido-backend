@@ -40,6 +40,27 @@ class PalletPolicy extends BaseModulePolicy
         return parent::update($user, $model);
     }
 
+    public function updateDeliveryLocation(User $user, Pallet $pallet): bool
+    {
+        if ($user->isCustomer()) {
+            return $pallet->user_id === $user->id
+                && $pallet->is_active
+                && app(PalletCustomerAssignmentRule::class)->statusAllowsCustomer($pallet->currentStatus);
+        }
+
+        return parent::update($user, $pallet);
+    }
+
+    public function scanCustomerPossession(User $user): bool
+    {
+        return $user->isCustomer();
+    }
+
+    public function claimCustomerPossession(User $user, Pallet $pallet): bool
+    {
+        return $user->isCustomer() && $pallet->is_active;
+    }
+
     public function delete(User $user, mixed $model): bool
     {
         if ($user->isCustomer()) {

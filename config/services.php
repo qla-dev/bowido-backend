@@ -22,6 +22,13 @@ return [
         'key' => env('RESEND_API_KEY'),
     ],
 
+    'kvk' => [
+        'api_key' => env('KVK_API_KEY'),
+        'basisprofiel_url' => env('KVK_BASISPROFIEL_URL', 'https://api.kvk.nl/api/v1/basisprofielen'),
+        'timeout_seconds' => env('KVK_TIMEOUT_SECONDS', 8),
+        'connect_timeout_seconds' => env('KVK_CONNECT_TIMEOUT_SECONDS', 3),
+    ],
+
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),

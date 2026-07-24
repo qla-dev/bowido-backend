@@ -16,7 +16,10 @@ class ReverseGeocodingService
         $roundedLatitude = round($latitude, $precision);
         $roundedLongitude = round($longitude, $precision);
         $cacheKey = sprintf(
-            'reverse-geocoding:%s:%s:%s',
+            // Version the key when the normalized address shape changes, so a
+            // previously cached response with an empty street does not mask a
+            // newly supported locality fallback.
+            'reverse-geocoding:v2:%s:%s:%s',
             $this->provider->name(),
             number_format($roundedLatitude, $precision, '.', ''),
             number_format($roundedLongitude, $precision, '.', ''),

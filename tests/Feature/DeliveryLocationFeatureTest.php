@@ -49,6 +49,75 @@ class DeliveryLocationFeatureTest extends TestCase
             ->assertJsonPath('data.provider', 'geoapify');
     }
 
+    public function test_authorized_user_can_search_a_full_address_and_receive_suggestions(): void
+    {
+        Http::fake([
+            'api.geoapify.com/*' => Http::response([
+                'results' => [[
+                    'lat' => 43.8563,
+                    'lon' => 18.4131,
+                    'formatted' => 'Titova 1, 71000 Sarajevo, Bosnia and Herzegovina',
+                    'street' => 'Titova',
+                    'housenumber' => '1',
+                    'city' => 'Sarajevo',
+                    'postcode' => '71000',
+                    'country' => 'Bosnia and Herzegovina',
+                    'country_code' => 'ba',
+                ]],
+            ], 200),
+        ]);
+
+        $response = $this->actingAs($this->makeUser('admin'), 'api')
+            ->postJson('/api/location/address-search', [
+                'query' => 'Titova 1 Sarajevo',
+            ]);
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.0.latitude', 43.8563)
+            ->assertJsonPath('data.0.longitude', 18.4131)
+            ->assertJsonPath('data.0.street', 'Titova')
+            ->assertJsonPath('data.0.house_number', '1')
+            ->assertJsonPath('data.0.postal_code', '71000')
+            ->assertJsonPath('data.0.city', 'Sarajevo');
+    }
+
+    public function test_address_search_uses_a_locality_name_when_the_provider_has_no_street(): void
+    {
+        Http::fake([
+            'api.geoapify.com/*' => Http::response([
+                'results' => [[
+                    'lat' => 43.944,
+                    'lon' => 18.347,
+                    'suburb' => 'Donja Jošanica',
+                    'address_line1' => 'Donja Jošanica',
+                    'city' => 'Vogošća',
+                    'postcode' => '71320',
+                    'country' => 'Bosnia and Herzegovina',
+                    'country_code' => 'ba',
+                    'formatted' => 'Donja Jošanica, 71320 Vogošća, Bosnia and Herzegovina',
+                ]],
+            ], 200),
+        ]);
+
+        $this->actingAs($this->makeUser('admin'), 'api')
+            ->postJson('/api/location/address-search', [
+                'query' => 'Donja Jošanica, 71320 Vogošća',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.0.street', 'Donja Jošanica')
+            ->assertJsonPath('data.0.city', 'Vogošća')
+            ->assertJsonPath('data.0.postal_code', '71320');
+    }
+
+    public function test_address_search_requires_a_full_enough_query(): void
+    {
+        $this->actingAs($this->makeUser('admin'), 'api')
+            ->postJson('/api/location/address-search', ['query' => 'ab'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('query');
+    }
+
     public function test_invalid_coordinates_are_rejected(): void
     {
         $this->actingAs($this->makeUser('admin'), 'api')
@@ -163,12 +232,94 @@ class DeliveryLocationFeatureTest extends TestCase
             'source' => 'device_gps',
             'confirmed_by_user' => true,
         ]);
+        $this->assertDatabaseHas('pallets', [
+            'id' => $pallet->id,
+            'current_location' => 'Titova 1, 71000 Sarajevo, Bosnia and Herzegovina',
+        ]);
 
         $this->actingAs($admin, 'api')
             ->getJson('/api/pallets/'.$pallet->id)
             ->assertOk()
             ->assertJsonPath('data.delivery_location.latitude', 43.8563)
             ->assertJsonPath('data.delivery_location.city', 'Sarajevo');
+    }
+
+    public function test_customer_can_save_a_map_location_for_their_own_active_pallet(): void
+    {
+        Http::fake([
+            'api.geoapify.com/*' => Http::response($this->geoapifyResponse(), 200),
+        ]);
+        $customer = $this->makeUser('customer');
+        $pallet = $this->makePallet($customer->id);
+
+        $this->actingAs($customer, 'api')
+            ->putJson('/api/pallets/'.$pallet->id.'/delivery-location', [
+                'latitude' => 43.8563,
+                'longitude' => 18.4131,
+                'street' => 'Titova',
+                'house_number' => '1',
+                'postal_code' => '71000',
+                'city' => 'Sarajevo',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.street', 'Titova');
+
+        $this->assertDatabaseHas('pallets', [
+            'id' => $pallet->id,
+            'current_location' => 'Titova 1, 71000 Sarajevo',
+        ]);
+    }
+
+    public function test_customer_can_claim_a_scanned_pallet_only_with_customer_statuses_and_their_own_account(): void
+    {
+        $owner = $this->makeUser('customer');
+        $scanner = $this->makeUser('customer');
+        $transport = Status::query()->where('slug', 'bih-nl-transport')->firstOrFail();
+        $atCustomer = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $pickup = Status::query()->where('slug', 'ophalen-klant')->firstOrFail();
+        $pallet = Pallet::factory()->create([
+            'user_id' => $owner->id,
+            'current_status_id' => $transport->id,
+            'current_location' => 'Na putu',
+        ]);
+
+        $this->actingAs($scanner, 'api')
+            ->postJson('/api/pallets/scan-customer-possession', ['qr_code' => $pallet->qr_code])
+            ->assertOk()
+            ->assertJsonPath('data.id', $pallet->id);
+
+        $this->actingAs($scanner, 'api')
+            ->putJson('/api/pallets/'.$pallet->id.'/claim-customer-possession', [
+                'current_status_id' => $atCustomer->id,
+                'current_location' => 'Other customer address 12, Sarajevo',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.user_id', $scanner->id)
+            ->assertJsonPath('data.current_status_id', $atCustomer->id)
+            ->assertJsonPath('data.current_location', 'Other customer address 12, Sarajevo');
+
+        $this->assertDatabaseHas('pallets', [
+            'id' => $pallet->id,
+            'user_id' => $scanner->id,
+            'current_status_id' => $atCustomer->id,
+        ]);
+
+        $this->actingAs($scanner, 'api')
+            ->putJson('/api/pallets/'.$pallet->id.'/claim-customer-possession', [
+                'current_status_id' => $transport->id,
+                'current_location' => 'Not allowed',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('current_status_id');
+
+        $this->actingAs($scanner, 'api')
+            ->putJson('/api/pallets/'.$pallet->id.'/claim-customer-possession', [
+                'current_status_id' => $pickup->id,
+                'current_location' => 'Warehouse 2',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.user_id', $scanner->id)
+            ->assertJsonPath('data.current_status_id', $pickup->id);
     }
 
     public function test_existing_delivery_location_can_be_updated(): void
