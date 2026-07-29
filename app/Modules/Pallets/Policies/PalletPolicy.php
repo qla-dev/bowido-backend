@@ -47,14 +47,13 @@ class PalletPolicy extends BaseModulePolicy
             return $this->update($user, $model);
         }
 
-        return $model->user_id === $user->id
-            && app(PalletCustomerAssignmentRule::class)->statusAllowsCustomer($model->currentStatus);
+        return $this->canManageClientTracking($user, $model);
+    }
+
     public function updateDeliveryLocation(User $user, Pallet $pallet): bool
     {
         if ($user->isCustomer()) {
-            return $pallet->user_id === $user->id
-                && $pallet->is_active
-                && app(PalletCustomerAssignmentRule::class)->statusAllowsCustomer($pallet->currentStatus);
+            return $this->canManageClientTracking($user, $pallet);
         }
 
         return parent::update($user, $pallet);
@@ -68,6 +67,13 @@ class PalletPolicy extends BaseModulePolicy
     public function claimCustomerPossession(User $user, Pallet $pallet): bool
     {
         return $user->isCustomer() && $pallet->is_active;
+    }
+
+    private function canManageClientTracking(User $user, Pallet $pallet): bool
+    {
+        return $pallet->user_id === $user->id
+            && $pallet->is_active
+            && app(PalletCustomerAssignmentRule::class)->statusAllowsCustomer($pallet->currentStatus);
     }
 
     public function delete(User $user, mixed $model): bool
