@@ -198,6 +198,9 @@ class PalletService extends BaseCrudService
             );
 
             return $updatedPallet->load(['user.role', 'user.customerDetail', 'currentStatus', 'deliveryLocation']);
+        });
+    }
+
     public function claimCustomerPossession(
         Pallet $pallet,
         User $customer,

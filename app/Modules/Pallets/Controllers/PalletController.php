@@ -17,6 +17,7 @@ use App\Modules\Shared\DTOs\ListQueryData;
 use App\Modules\Shared\Http\Controllers\ApiController;
 use Illuminate\Http\JsonResponse;
 use App\Modules\Shared\Support\Normalizer;
+use Illuminate\Support\Facades\Log;
 
 class PalletController extends ApiController
 {
@@ -108,7 +109,24 @@ class PalletController extends ApiController
         $pallet = Pallet::query()
             ->with(['user.customerDetail', 'currentStatus', 'deliveryLocation'])
             ->where('qr_code', $qrCode)
-            ->firstOrFail();
+            ->first();
+
+        Log::info('Customer QR scan lookup completed.', [
+            'actor_id' => $request->user()->id,
+            'qr_code_hash' => hash('sha256', $qrCode),
+            'qr_code_length' => mb_strlen($qrCode),
+            'matched_pallet_id' => $pallet?->id,
+        ]);
+
+        if ($pallet === null) {
+            Log::warning('Customer QR scan lookup did not match a pallet.', [
+                'actor_id' => $request->user()->id,
+                'qr_code_hash' => hash('sha256', $qrCode),
+                'pallets_with_qr_code' => Pallet::query()->whereNotNull('qr_code')->where('qr_code', '!=', '')->count(),
+            ]);
+
+            abort(404, __('The scanned QR code is not linked to a pallet.'));
+        }
 
         return $this->successItem($pallet, PalletResource::class, __('Pallet scanned successfully.'));
     }
