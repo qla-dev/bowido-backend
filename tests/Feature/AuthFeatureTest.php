@@ -4,11 +4,154 @@ namespace Tests\Feature;
 
 use App\Modules\CustomerDetails\Models\CustomerDetail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class AuthFeatureTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config()->set('services.kvk.api_key', 'test-kvk-key');
+        config()->set('services.kvk.basisprofiel_url', 'https://api.test.kvk/basisprofielen');
+    }
+
+    public function test_kvk_lookup_rejects_an_invalid_number(): void
+    {
+        $this->postJson('/api/auth/kvk-lookup', ['kvk' => '1234'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('kvk');
+    }
+
+    public function test_kvk_lookup_uses_local_customer_data_before_calling_kvk(): void
+    {
+        $user = $this->makeUser('customer', [
+            'name' => 'Local Contact',
+            'email' => 'local@example.com',
+            'phone_number' => '+31612345678',
+        ]);
+        CustomerDetail::factory()->create([
+            'user_id' => $user->id,
+            'kvk' => '12.345.678',
+            'company_name' => 'Local Company B.V.',
+            'street' => 'Database Street',
+            'house_number' => '12A',
+            'postal_code' => '1234 AB',
+            'city' => 'Utrecht',
+        ]);
+        Http::fake();
+
+        $this->postJson('/api/auth/kvk-lookup', ['kvk' => '12 345 678'])
+            ->assertOk()
+            ->assertJsonPath('data.source', 'database')
+            ->assertJsonPath('data.fields.kvk', '12.345.678')
+            ->assertJsonPath('data.fields.name', 'Local Contact')
+            ->assertJsonPath('data.fields.email', 'local@example.com')
+            ->assertJsonPath('data.fields.phone_number', '+31612345678')
+            ->assertJsonPath('data.fields.street', 'Database Street');
+
+        Http::assertNothingSent();
+    }
+
+    public function test_kvk_lookup_falls_back_to_basisprofiel_and_maps_the_registration_fields(): void
+    {
+        Http::fake([
+            'api.test.kvk/*' => Http::response([
+                'kvkNummer' => '12345678',
+                'naam' => 'KVK Company B.V.',
+                'emailadres' => 'contact@kvk-company.example',
+                '_embedded' => [
+                    'hoofdvestiging' => [
+                        'eersteHandelsnaam' => 'Fallback trade name',
+                        'adressen' => [[
+                            'type' => 'bezoekadres',
+                            'straatnaam' => 'KVK Straat',
+                            'huisnummer' => 12,
+                            'huisnummerToevoeging' => 'bis',
+                            'postcode' => '1234 AB',
+                            'plaats' => 'Amsterdam',
+                            'land' => 'Nederland',
+                        ]],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $this->postJson('/api/auth/kvk-lookup', ['kvk' => '1234-5678'])
+            ->assertOk()
+            ->assertJsonPath('data.source', 'kvk')
+            ->assertJsonPath('data.fields.kvk', '12345678')
+            ->assertJsonPath('data.fields.name', 'KVK Company B.V.')
+            ->assertJsonPath('data.fields.email', 'contact@kvk-company.example')
+            ->assertJsonPath('data.fields.street', 'KVK Straat')
+            ->assertJsonPath('data.fields.country', 'NL')
+            ->assertJsonPath('data.fields.house_number', '12')
+            ->assertJsonPath('data.fields.postal_code', '1234 AB')
+            ->assertJsonPath('data.fields.city', 'Amsterdam')
+            ->assertJsonMissing(['test-kvk-key']);
+
+        $this->assertDatabaseMissing('customer_details', ['kvk' => '12345678']);
+
+        Http::assertSent(fn ($request) => $request->hasHeader('apikey', 'test-kvk-key'));
+    }
+
+    public function test_kvk_lookup_uses_the_first_main_branch_address_when_no_visit_address_exists(): void
+    {
+        Http::fake(['api.test.kvk/*' => Http::response([
+            'kvkNummer' => '87654321',
+            '_embedded' => ['hoofdvestiging' => [
+                'eersteHandelsnaam' => 'Fallback B.V.',
+                'adressen' => [[
+                    'type' => 'postadres',
+                    'straatnaam' => 'Poststraat',
+                    'huisnummer' => 5,
+                    'postcode' => '3011AA',
+                    'plaats' => 'Rotterdam',
+                    'land' => 'NL',
+                ]],
+            ]],
+        ], 200)]);
+
+        $this->postJson('/api/auth/kvk-lookup', ['kvk' => '87654321'])
+            ->assertOk()
+            ->assertJsonPath('data.fields.name', 'Fallback B.V.')
+            ->assertJsonPath('data.fields.street', 'Poststraat')
+            ->assertJsonPath('data.fields.country', 'NL');
+    }
+
+    public function test_kvk_lookup_maps_available_company_data_when_main_branch_addresses_are_missing(): void
+    {
+        Http::fake(['api.test.kvk/*' => Http::response([
+            'kvkNummer' => '11223344',
+            'naam' => 'Addressless Company',
+        ], 200)]);
+
+        $this->postJson('/api/auth/kvk-lookup', ['kvk' => '11223344'])
+            ->assertOk()
+            ->assertJsonPath('data.fields.kvk', '11223344')
+            ->assertJsonPath('data.fields.name', 'Addressless Company')
+            ->assertJsonMissing(['street', 'postal_code', 'city']);
+    }
+
+    public function test_kvk_lookup_handles_company_not_found(): void
+    {
+        Http::fake(['api.test.kvk/*' => Http::response([], 404)]);
+        $this->postJson('/api/auth/kvk-lookup', ['kvk' => '12345678'])
+            ->assertNotFound()
+            ->assertJsonPath('message', 'No company was found for this KVK number.');
+    }
+
+    public function test_kvk_lookup_handles_upstream_failures_without_leaking_provider_data(): void
+    {
+        Http::fake(['api.test.kvk/*' => Http::response(['secret' => 'must-not-leak'], 500)]);
+        $this->postJson('/api/auth/kvk-lookup', ['kvk' => '87654321'])
+            ->assertStatus(503)
+            ->assertJsonPath('message', 'Company lookup is temporarily unavailable.')
+            ->assertJsonMissing(['must-not-leak']);
+    }
 
     public function test_user_can_register_without_creating_api_token(): void
     {

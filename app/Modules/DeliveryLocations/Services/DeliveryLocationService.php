@@ -8,6 +8,7 @@ use App\Modules\Locations\Services\ReverseGeocodingService;
 use App\Modules\Pallets\Models\Pallet;
 use App\Modules\Users\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class DeliveryLocationService
 {
@@ -58,9 +59,15 @@ class DeliveryLocationService
             );
 
             $lockedPallet->loadMissing('currentStatus');
-            if ($lockedPallet->currentStatus?->slug === 'bij-de-klant' && $formattedAddress !== null) {
+            if ($formattedAddress !== null) {
                 $lockedPallet->update(['current_location' => $formattedAddress]);
             }
+
+            Log::info('Pallet current location persisted from map.', [
+                'pallet_id' => $lockedPallet->id,
+                'current_location' => $formattedAddress,
+                'actor_id' => $actor->id,
+            ]);
 
             return $location->refresh();
         });

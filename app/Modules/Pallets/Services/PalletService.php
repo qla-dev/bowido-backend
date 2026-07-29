@@ -198,6 +198,37 @@ class PalletService extends BaseCrudService
             );
 
             return $updatedPallet->load(['user.role', 'user.customerDetail', 'currentStatus', 'deliveryLocation']);
+    public function claimCustomerPossession(
+        Pallet $pallet,
+        User $customer,
+        int $statusId,
+        string $location,
+    ): Pallet {
+        $status = $this->statusRepository->findOrFail($statusId);
+
+        if (! $this->customerAssignmentRule->statusAllowsCustomer($status)) {
+            throw ValidationException::withMessages([
+                'current_status_id' => [__('Customers may only set Bij de klant or Ophalen klant.')],
+            ]);
+        }
+
+        return DB::transaction(function () use ($pallet, $customer, $status, $location): Pallet {
+            $lockedPallet = $this->palletRepository->lockForUpdate($pallet->id);
+            $lockedPallet->update([
+                'user_id' => $customer->id,
+                'current_status_id' => $status->id,
+                'current_location' => trim($location),
+                'last_status_changed_at' => now(),
+            ]);
+
+            Log::info('Customer claimed pallet possession.', [
+                'pallet_id' => $lockedPallet->id,
+                'customer_id' => $customer->id,
+                'status_id' => $status->id,
+                'location' => trim($location),
+            ]);
+
+            return $lockedPallet->fresh(['user.customerDetail', 'currentStatus', 'deliveryLocation']);
         });
     }
 

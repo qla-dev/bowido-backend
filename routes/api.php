@@ -9,6 +9,7 @@ use App\Modules\GhostPalletReports\Controllers\GhostPalletReportController;
 use App\Modules\InvoiceItems\Controllers\InvoiceItemController;
 use App\Modules\Invoices\Controllers\InvoiceController;
 use App\Modules\Locations\Controllers\ReverseGeocodingController;
+use App\Modules\Locations\Controllers\AddressSearchController;
 use App\Modules\Modules\Controllers\ModuleController;
 use App\Modules\PalletPhotos\Controllers\GalleryController;
 use App\Modules\PalletPhotos\Controllers\PalletPhotoController;
@@ -40,6 +41,8 @@ Route::prefix('auth')->group(function (): void {
 });
 
 Route::middleware('auth:web,api')->group(function (): void {
+    Route::post('location/address-search', AddressSearchController::class)
+        ->middleware('throttle:location-search');
     Route::post('location/reverse-geocode', ReverseGeocodingController::class)
         ->middleware('throttle:reverse-geocoding');
     Route::get('gallery', GalleryController::class);
@@ -56,6 +59,8 @@ Route::middleware('auth:web,api')->group(function (): void {
     Route::get('pallets/dashboard-stats', PalletStatsController::class);
     Route::put('pallets/{pallet}/current-location', [PalletController::class, 'updateCurrentLocation']);
     Route::put('pallets/{pallet}/client-status', [PalletController::class, 'updateClientStatus']);
+    Route::post('pallets/scan-customer-possession', [PalletController::class, 'scanCustomerPossession']);
+    Route::put('pallets/{pallet}/claim-customer-possession', [PalletController::class, 'claimCustomerPossession']);
     Route::put('pallets/{pallet}/delivery-location', [DeliveryLocationController::class, 'update']);
     Route::post('pallets/{pallet}/overdue-invoice/send', [InvoiceController::class, 'sendOverduePalletInvoice']);
     Route::apiResource('pallets', PalletController::class);
