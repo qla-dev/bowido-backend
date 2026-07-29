@@ -356,8 +356,8 @@ class ReferenceDataSeeder extends Seeder
             ],
             [
                 'slug' => ModuleKey::GhostPalletReports->value,
-                'name' => 'Ghost Pallet Reports',
-                'description' => 'Ghost pallet reporting and pairing.',
+                'name' => 'Pallets without QR codes',
+                'description' => 'Reporting and pairing pallets without QR codes.',
                 'legacy_slugs' => [],
             ],
             [

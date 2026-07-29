@@ -40,6 +40,15 @@ class PalletPolicy extends BaseModulePolicy
         return parent::update($user, $model);
     }
 
+    public function updateClientTracking(User $user, mixed $model): bool
+    {
+        /** @var Pallet $model */
+        if (! $user->isCustomer()) {
+            return $this->update($user, $model);
+        }
+
+        return $model->user_id === $user->id
+            && app(PalletCustomerAssignmentRule::class)->statusAllowsCustomer($model->currentStatus);
     public function updateDeliveryLocation(User $user, Pallet $pallet): bool
     {
         if ($user->isCustomer()) {

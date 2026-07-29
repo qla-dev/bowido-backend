@@ -153,6 +153,51 @@ class PalletService extends BaseCrudService
         return $updatedPallet;
     }
 
+    public function updateCurrentLocation(Pallet $pallet, string $location): Pallet
+    {
+        return DB::transaction(function () use ($pallet, $location): Pallet {
+            $lockedPallet = $this->palletRepository->lockForUpdate($pallet->id);
+
+            /** @var Pallet $updatedPallet */
+            $updatedPallet = $this->palletRepository->update($lockedPallet, [
+                'current_location' => trim($location),
+            ]);
+
+            return $updatedPallet->load(['user.role', 'user.customerDetail', 'currentStatus', 'deliveryLocation']);
+        });
+    }
+
+    public function updateClientStatus(Pallet $pallet, int $statusId, User $actor): Pallet
+    {
+        $nextStatus = $this->statusRepository->findOrFail($statusId);
+
+        if (! $this->customerAssignmentRule->statusAllowsCustomer($nextStatus)) {
+            throw ValidationException::withMessages([
+                'current_status_id' => [__('Customers can only select client tracking statuses.')],
+            ]);
+        }
+
+        return DB::transaction(function () use ($pallet, $statusId, $actor): Pallet {
+            $lockedPallet = $this->palletRepository->lockForUpdate($pallet->id);
+            $originalAttributes = $lockedPallet->only(['user_id', 'current_status_id', 'current_location', 'qr_code']);
+            $attributes = [
+                'user_id' => $lockedPallet->user_id,
+                'current_status_id' => $statusId,
+                'current_location' => $lockedPallet->current_location,
+                'last_status_changed_at' => now(),
+            ];
+
+            /** @var Pallet $updatedPallet */
+            $updatedPallet = $this->palletRepository->update($lockedPallet, $attributes);
+
+            $this->trackableAssetService->recordMutations(
+                pallet: $updatedPallet,
+                originalAttributes: $originalAttributes,
+                attributes: $attributes,
+                actor: $actor,
+            );
+
+            return $updatedPallet->load(['user.role', 'user.customerDetail', 'currentStatus', 'deliveryLocation']);
     public function claimCustomerPossession(
         Pallet $pallet,
         User $customer,
@@ -194,7 +239,7 @@ class PalletService extends BaseCrudService
 
         if ($this->palletRepository->hasLinkedRecords($pallet)) {
             throw ValidationException::withMessages([
-                'pallet' => [__('Pallets with linked history, reports, ghost pairings, or invoice items cannot be deleted.')],
+                'pallet' => [__('Pallets with linked history, reports, no-QR pairings, or invoice items cannot be deleted.')],
             ]);
         }
 

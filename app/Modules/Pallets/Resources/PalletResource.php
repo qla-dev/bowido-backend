@@ -47,6 +47,7 @@ class PalletResource extends JsonResource
             'debt_eur' => $this->debt_eur,
             'is_active' => $this->is_active,
             'is_ghost' => $this->is_ghost,
+            'ghost_pallet_report_id' => $this->ghost_pallet_report_id,
             'metadata' => $this->metadata,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

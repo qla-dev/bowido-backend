@@ -23,9 +23,12 @@ class PalletPhoto extends Model
         'warehouse_scope',
         'disk',
         'path',
+        'content',
         'original_name',
         'mime_type',
         'size_bytes',
+        'width',
+        'height',
         'expires_at',
     ];
 
@@ -34,6 +37,8 @@ class PalletPhoto extends Model
         return [
             'type' => PalletPhotoType::class,
             'size_bytes' => 'integer',
+            'width' => 'integer',
+            'height' => 'integer',
             'expires_at' => 'datetime',
         ];
     }

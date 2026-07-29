@@ -38,10 +38,14 @@ class PalletRepository extends BaseRepository
         if ($actor?->isCustomer()) {
             $query
                 ->where('user_id', $actor->id)
-                ->whereHas('currentStatus', fn (Builder $statusQuery) => $statusQuery->whereIn(
-                    'slug',
-                    PalletCustomerAssignmentRule::ALLOWED_STATUS_SLUGS,
-                ));
+                ->where(function (Builder $customerPalletQuery): void {
+                    $customerPalletQuery
+                        ->where('is_ghost', true)
+                        ->orWhereHas('currentStatus', fn (Builder $statusQuery) => $statusQuery->whereIn(
+                            'slug',
+                            PalletCustomerAssignmentRule::ALLOWED_STATUS_SLUGS,
+                        ));
+                });
         }
 
         return $query;
