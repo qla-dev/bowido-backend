@@ -7,6 +7,8 @@ use App\Modules\Pallets\Models\Pallet;
 use App\Modules\Pallets\Requests\ListPalletsRequest;
 use App\Modules\Pallets\Requests\StorePalletRequest;
 use App\Modules\Pallets\Requests\UpdatePalletRequest;
+use App\Modules\Pallets\Requests\UpdatePalletLocationRequest;
+use App\Modules\Pallets\Requests\UpdateClientPalletStatusRequest;
 use App\Modules\Pallets\Resources\PalletResource;
 use App\Modules\Pallets\Services\PalletService;
 use App\Modules\Shared\DTOs\ListQueryData;
@@ -60,6 +62,31 @@ class PalletController extends ApiController
         ]), $request->user());
 
         return $this->successItem($updatedPallet, PalletResource::class, __('Pallet updated successfully.'));
+    }
+
+    public function updateCurrentLocation(UpdatePalletLocationRequest $request, Pallet $pallet): JsonResponse
+    {
+        $this->authorize('updateClientTracking', $pallet);
+
+        $updatedPallet = $this->palletService->updateCurrentLocation(
+            $pallet,
+            $request->validated('current_location'),
+        );
+
+        return $this->successItem($updatedPallet, PalletResource::class, __('Pallet location updated successfully.'));
+    }
+
+    public function updateClientStatus(UpdateClientPalletStatusRequest $request, Pallet $pallet): JsonResponse
+    {
+        $this->authorize('updateClientTracking', $pallet);
+
+        $updatedPallet = $this->palletService->updateClientStatus(
+            $pallet,
+            (int) $request->validated('current_status_id'),
+            $request->user(),
+        );
+
+        return $this->successItem($updatedPallet, PalletResource::class, __('Pallet status updated successfully.'));
     }
 
     public function destroy(Pallet $pallet): JsonResponse

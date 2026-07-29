@@ -9,17 +9,14 @@ use App\Modules\Pallets\Models\Pallet;
 use App\Modules\Statuses\Models\Status;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class PalletPhotoFeatureTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_scan_photo_is_stored_privately_without_an_audit_log(): void
+    public function test_scan_photo_is_stored_in_the_database_without_an_audit_log(): void
     {
-        Storage::fake('local');
-
         $admin = $this->makeUser('admin');
         $customer = $this->makeUser('customer');
         $status = Status::query()->where('slug', 'bowido-nl')->firstOrFail();
@@ -56,7 +53,11 @@ class PalletPhotoFeatureTest extends TestCase
         $this->assertSame($atCustomerStatus->id, $photo->new_status_id);
         $this->assertSame($customer->id, $photo->client_id);
         $this->assertTrue($photo->expires_at->isAfter(now()->addMonths(2)));
-        Storage::disk('local')->assertExists($photo->path);
+        $this->assertNotEmpty($photo->content);
+        $this->assertSame('image/webp', $photo->mime_type);
+        $this->assertLessThanOrEqual(120 * 1024, $photo->size_bytes);
+        $this->assertNull($photo->disk);
+        $this->assertNull($photo->path);
         $this->assertSame($auditLogCount, AuditLog::query()->count());
 
         $this->actingAs($admin, 'api')
@@ -68,8 +69,6 @@ class PalletPhotoFeatureTest extends TestCase
 
     public function test_damage_report_photo_is_stored_with_the_damage_type_without_an_audit_log(): void
     {
-        Storage::fake('local');
-
         $admin = $this->makeUser('admin');
         $customer = $this->makeUser('customer');
         $status = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
@@ -97,7 +96,54 @@ class PalletPhotoFeatureTest extends TestCase
 
         $this->assertSame('damage_report', $photo->type->value);
         $this->assertNotNull($photo->service_report_id);
-        Storage::disk('local')->assertExists($photo->path);
+        $this->assertNotEmpty($photo->content);
+        $this->assertSame('image/webp', $photo->mime_type);
+        $this->assertLessThanOrEqual(120 * 1024, $photo->size_bytes);
+        $this->assertNull($photo->disk);
+        $this->assertNull($photo->path);
         $this->assertSame($auditLogCount, AuditLog::query()->count());
+    }
+
+    public function test_delivery_photo_is_reencoded_to_webp_in_the_database_and_can_be_opened_from_the_gallery(): void
+    {
+        $admin = $this->makeUser('admin');
+        $customer = $this->makeUser('customer');
+        $status = Status::query()->where('slug', 'bowido-nl')->firstOrFail();
+        $pallet = Pallet::factory()->create([
+            'user_id' => $customer->id,
+            'current_status_id' => $status->id,
+        ]);
+
+        $response = $this->actingAs($admin, 'api')->post(
+            "/api/pallets/{$pallet->id}/delivery-photo",
+            ['photo' => UploadedFile::fake()->image('delivery.png', 2000, 1500)],
+        );
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('data.type', 'delivery_photo')
+            ->assertJsonPath('data.mime_type', 'image/webp')
+            ->assertJsonPath('data.width', 1600)
+            ->assertJsonPath('data.height', 1200);
+
+        $photo = PalletPhoto::query()->firstOrFail();
+
+        $this->assertSame('delivery_photo', $photo->type->value);
+        $this->assertNull($photo->disk);
+        $this->assertNull($photo->path);
+        $this->assertNotEmpty($photo->content);
+        $this->assertLessThanOrEqual(120 * 1024, $photo->size_bytes);
+        $encodedPhoto = $photo->content;
+        $this->assertSame('RIFF', substr($encodedPhoto, 0, 4));
+        $this->assertSame('WEBP', substr($encodedPhoto, 8, 4));
+
+        $url = (string) $response->json('data.url');
+        $parsed = parse_url($url);
+        $signedPath = ($parsed['path'] ?? '').(isset($parsed['query']) ? '?'.$parsed['query'] : '');
+
+        $this->actingAs($admin, 'api')
+            ->get($signedPath)
+            ->assertOk()
+            ->assertHeader('content-type', 'image/webp');
     }
 }

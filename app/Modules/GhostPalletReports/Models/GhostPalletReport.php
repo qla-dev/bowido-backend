@@ -8,6 +8,7 @@ use Database\Factories\GhostPalletReportFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class GhostPalletReport extends Model
 {
@@ -48,5 +49,10 @@ class GhostPalletReport extends Model
     public function pairedPallet(): BelongsTo
     {
         return $this->belongsTo(Pallet::class, 'paired_pallet_id');
+    }
+
+    public function pallets(): HasMany
+    {
+        return $this->hasMany(Pallet::class, 'ghost_pallet_report_id');
     }
 }

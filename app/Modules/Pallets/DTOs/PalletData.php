@@ -42,8 +42,8 @@ readonly class PalletData
                 ? (int) $attributes['user_id']
                 : null,
             currentStatusId: (int) $attributes['current_status_id'],
-            type: trim((string) ($attributes['type'] ?? $attributes['asset_type'] ?? 'pallet')),
-            assetType: trim((string) ($attributes['asset_type'] ?? 'pallet')),
+            type: trim((string) ($attributes['type'] ?? $attributes['asset_type'] ?? 'invullen!')),
+            assetType: trim((string) ($attributes['asset_type'] ?? $attributes['type'] ?? 'invullen!')),
             qrCode: $qrCode,
             palletName: $palletName,
             referenceCode: $referenceCode,

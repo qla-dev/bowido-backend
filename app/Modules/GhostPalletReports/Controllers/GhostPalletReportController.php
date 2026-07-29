@@ -35,7 +35,10 @@ class GhostPalletReportController extends ApiController
         $this->authorize('create', GhostPalletReport::class);
 
         $ghostPalletReport = $this->ghostPalletReportService->create(
-            GhostPalletReportData::fromArray($request->validated()),
+            GhostPalletReportData::fromArray([
+                ...$request->validated(),
+                'image' => $request->file('image'),
+            ]),
             $request->user(),
         );
 

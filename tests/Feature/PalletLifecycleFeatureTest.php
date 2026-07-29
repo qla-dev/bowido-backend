@@ -15,6 +15,79 @@ class PalletLifecycleFeatureTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_current_location_update_persists_the_location_chosen_in_the_client_list(): void
+    {
+        $admin = $this->makeUser('admin');
+        $status = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $pallet = Pallet::factory()->create([
+            'user_id' => $this->makeUser('customer')->id,
+            'current_status_id' => $status->id,
+            'current_location' => 'Old location',
+        ]);
+
+        $this->actingAs($admin, 'api')
+            ->putJson('/api/pallets/'.$pallet->id.'/current-location', [
+                'current_location' => 'Warehouse 2, Example Street 10',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.current_location', 'Warehouse 2, Example Street 10');
+
+        $this->assertDatabaseHas('pallets', [
+            'id' => $pallet->id,
+            'current_location' => 'Warehouse 2, Example Street 10',
+        ]);
+    }
+
+    public function test_customer_can_update_only_their_own_client_tracking_fields(): void
+    {
+        $customer = $this->makeUser('customer');
+        $otherCustomer = $this->makeUser('customer');
+        $atCustomer = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $returnStatus = Status::query()->where('slug', 'ophalen-klant')->firstOrFail();
+        $ownPallet = Pallet::factory()->create([
+            'user_id' => $customer->id,
+            'current_status_id' => $atCustomer->id,
+            'current_location' => 'Customer address',
+        ]);
+        $otherPallet = Pallet::factory()->create([
+            'user_id' => $otherCustomer->id,
+            'current_status_id' => $atCustomer->id,
+        ]);
+
+        $this->actingAs($customer, 'api')
+            ->putJson('/api/pallets/'.$ownPallet->id.'/current-location', [
+                'current_location' => 'Selected warehouse',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.current_location', 'Selected warehouse');
+
+        $this->actingAs($customer, 'api')
+            ->putJson('/api/pallets/'.$ownPallet->id.'/client-status', [
+                'current_status_id' => $returnStatus->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.current_status_id', $returnStatus->id);
+
+        $this->actingAs($customer, 'api')
+            ->putJson('/api/pallets/'.$ownPallet->id.'/client-status', [
+                'current_status_id' => $atCustomer->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.current_status_id', $atCustomer->id);
+
+        $this->actingAs($customer, 'api')
+            ->putJson('/api/pallets/'.$otherPallet->id.'/current-location', [
+                'current_location' => 'Not allowed',
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($customer, 'api')
+            ->putJson('/api/pallets/'.$ownPallet->id, [
+                'current_location' => 'The general update remains restricted',
+            ])
+            ->assertForbidden();
+    }
+
     public function test_both_transport_directions_always_store_na_putu(): void
     {
         $admin = $this->makeUser('admin');

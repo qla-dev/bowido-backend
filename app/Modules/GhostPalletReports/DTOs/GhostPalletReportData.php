@@ -2,6 +2,8 @@
 
 namespace App\Modules\GhostPalletReports\DTOs;
 
+use Illuminate\Http\UploadedFile;
+
 readonly class GhostPalletReportData
 {
     /**
@@ -16,6 +18,7 @@ readonly class GhostPalletReportData
         public ?string $description,
         public ?string $notes,
         public ?array $metadata,
+        public ?UploadedFile $image,
     ) {
     }
 
@@ -33,6 +36,7 @@ readonly class GhostPalletReportData
             description: $attributes['description'] ?? null,
             notes: $attributes['notes'] ?? null,
             metadata: isset($attributes['metadata']) && is_array($attributes['metadata']) ? $attributes['metadata'] : null,
+            image: $attributes['image'] ?? null,
         );
     }
 }

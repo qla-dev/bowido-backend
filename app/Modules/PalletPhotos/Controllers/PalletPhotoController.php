@@ -15,6 +15,7 @@ use App\Modules\Shared\Http\Controllers\ApiController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 class PalletPhotoController extends ApiController
 {
@@ -50,12 +51,20 @@ class PalletPhotoController extends ApiController
         );
     }
 
-    public function file(PalletPhoto $palletPhoto): StreamedResponse
+    public function file(PalletPhoto $palletPhoto): StreamedResponse|Response
     {
         $palletPhoto->loadMissing('pallet');
         abort_unless($this->palletPhotoService->canAccess(request()->user(), $palletPhoto), 403);
         abort_if($palletPhoto->expires_at->isPast(), 410, __('This photo has expired.'));
-        abort_unless(Storage::disk($palletPhoto->disk)->exists($palletPhoto->path), 404, __('Photo not found.'));
+        if ($palletPhoto->content !== null) {
+            return response($palletPhoto->content, 200, [
+                'Content-Type' => $palletPhoto->mime_type,
+                'Content-Disposition' => 'inline; filename="'.$palletPhoto->original_name.'"',
+                'Cache-Control' => 'private, no-store',
+            ]);
+        }
+
+        abort_unless($palletPhoto->path !== null && $palletPhoto->disk !== null && Storage::disk($palletPhoto->disk)->exists($palletPhoto->path), 404, __('Photo not found.'));
 
         return Storage::disk($palletPhoto->disk)->response(
             $palletPhoto->path,

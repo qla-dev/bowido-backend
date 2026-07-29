@@ -12,6 +12,7 @@ use App\Modules\Locations\Controllers\ReverseGeocodingController;
 use App\Modules\Modules\Controllers\ModuleController;
 use App\Modules\PalletPhotos\Controllers\GalleryController;
 use App\Modules\PalletPhotos\Controllers\PalletPhotoController;
+use App\Modules\PalletPhotos\Controllers\DeliveryPhotoController;
 use App\Modules\Pallets\Controllers\PalletController;
 use App\Modules\Pallets\Controllers\PalletStatsController;
 use App\Modules\RolePermissions\Controllers\RolePermissionController;
@@ -53,9 +54,12 @@ Route::middleware('auth:web,api')->group(function (): void {
         ->parameters(['customer_details' => 'customerDetail']);
     Route::apiResource('statuses', StatusController::class);
     Route::get('pallets/dashboard-stats', PalletStatsController::class);
+    Route::put('pallets/{pallet}/current-location', [PalletController::class, 'updateCurrentLocation']);
+    Route::put('pallets/{pallet}/client-status', [PalletController::class, 'updateClientStatus']);
     Route::put('pallets/{pallet}/delivery-location', [DeliveryLocationController::class, 'update']);
     Route::post('pallets/{pallet}/overdue-invoice/send', [InvoiceController::class, 'sendOverduePalletInvoice']);
     Route::apiResource('pallets', PalletController::class);
+    Route::post('pallets/{pallet}/delivery-photo', [DeliveryPhotoController::class, 'store']);
     Route::post('pallets/{pallet}/photos', [PalletPhotoController::class, 'store']);
     Route::get('customer_details/{customerDetail}/pallet-photos', [PalletPhotoController::class, 'forCustomer']);
     Route::apiResource('audit_logs', AuditLogController::class)

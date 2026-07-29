@@ -6,6 +6,7 @@ use App\Modules\AuditLogs\Models\AuditLog;
 use App\Modules\DeliveryLocations\Models\DeliveryLocation;
 use App\Modules\InvoiceItems\Models\InvoiceItem;
 use App\Modules\PalletPhotos\Models\PalletPhoto;
+use App\Modules\GhostPalletReports\Models\GhostPalletReport;
 use App\Modules\ServiceReports\Models\ServiceReport;
 use App\Modules\Statuses\Models\Status;
 use App\Modules\Users\Models\User;
@@ -38,6 +39,7 @@ class Pallet extends Model
         'debt_eur',
         'is_active',
         'is_ghost',
+        'ghost_pallet_report_id',
         'metadata',
     ];
 
@@ -83,6 +85,11 @@ class Pallet extends Model
     public function photos(): HasMany
     {
         return $this->hasMany(PalletPhoto::class);
+    }
+
+    public function ghostPalletReport(): BelongsTo
+    {
+        return $this->belongsTo(GhostPalletReport::class);
     }
 
     public function deliveryLocation(): HasOne

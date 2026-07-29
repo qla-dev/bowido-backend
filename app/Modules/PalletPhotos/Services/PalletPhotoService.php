@@ -13,6 +13,9 @@ use App\Modules\Users\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
+use Intervention\Image\Laravel\Facades\Image;
+use Throwable;
 
 class PalletPhotoService
 {
@@ -26,31 +29,79 @@ class PalletPhotoService
         ?int $newStatusId = null,
         ?int $clientId = null,
     ): PalletPhoto {
-        $disk = (string) config('pallet-photos.disk');
-        $path = $image->store("pallet-photos/{$pallet->id}/{$type->value}", $disk);
+        [$content, $width, $height] = $this->compressForDatabase($image);
 
+        return PalletPhoto::query()->create([
+            'pallet_id' => $pallet->id,
+            'old_status_id' => $oldStatusId ?? $pallet->current_status_id,
+            'new_status_id' => $newStatusId ?? $pallet->current_status_id,
+            'client_id' => $clientId ?? $pallet->user_id,
+            'service_report_id' => $serviceReport?->id,
+            'uploaded_by_user_id' => $actor->id,
+            'type' => $type,
+            'warehouse_scope' => $this->resolveWarehouseScope($pallet, $oldStatusId, $newStatusId),
+            'content' => $content,
+            'original_name' => $image->getClientOriginalName(),
+            'mime_type' => 'image/webp',
+            'size_bytes' => strlen($content),
+            'width' => $width,
+            'height' => $height,
+            'expires_at' => now()->addMonthsNoOverflow((int) config('pallet-photos.retention_months')),
+        ]);
+    }
+
+    /**
+     * Convert every database-backed photo to a valid, small WebP before the
+     * insert. This keeps MySQL packets safely below the default limits while
+     * retaining a useful image for the secured gallery.
+     *
+     * @return array{0: string, 1: int, 2: int}
+     */
+    public function compressForDatabase(UploadedFile $image, string $field = 'image'): array
+    {
         try {
-            return PalletPhoto::query()->create([
-                'pallet_id' => $pallet->id,
-                'old_status_id' => $oldStatusId ?? $pallet->current_status_id,
-                'new_status_id' => $newStatusId ?? $pallet->current_status_id,
-                'client_id' => $clientId ?? $pallet->user_id,
-                'service_report_id' => $serviceReport?->id,
-                'uploaded_by_user_id' => $actor->id,
-                'type' => $type,
-                'warehouse_scope' => $this->resolveWarehouseScope($pallet, $oldStatusId, $newStatusId),
-                'disk' => $disk,
-                'path' => $path,
-                'original_name' => $image->getClientOriginalName(),
-                'mime_type' => $image->getMimeType() ?? 'application/octet-stream',
-                'size_bytes' => $image->getSize() ?? 0,
-                'expires_at' => now()->addMonthsNoOverflow((int) config('pallet-photos.retention_months')),
-            ]);
-        } catch (\Throwable $exception) {
-            Storage::disk($disk)->delete($path);
+            $processed = Image::read($image->getRealPath());
+            $processed->scaleDown(width: 1600, height: 1200);
 
-            throw $exception;
+            $content = $this->encodeNearTargetSize($processed);
+
+            return [$content, $processed->width(), $processed->height()];
+        } catch (Throwable $exception) {
+            report($exception);
+
+            throw ValidationException::withMessages([
+                $field => [__('The image could not be processed.')],
+            ]);
         }
+    }
+
+    private function encodeNearTargetSize(object $image): string
+    {
+        $targetBytes = 120 * 1024;
+
+        foreach ([80, 75, 70, 65, 60, 55, 50, 45] as $quality) {
+            $encoded = (string) $image->toWebp($quality);
+
+            if (strlen($encoded) <= $targetBytes) {
+                return $encoded;
+            }
+        }
+
+        // An unusually detailed image may still be larger than the target at
+        // lower quality. Reduce dimensions gradually, never enlarging it.
+        while ($image->width() > 320 || $image->height() > 240) {
+            $image->scaleDown(
+                width: max(320, (int) floor($image->width() * 0.8)),
+                height: max(240, (int) floor($image->height() * 0.8)),
+            );
+            $encoded = (string) $image->toWebp(45);
+
+            if (strlen($encoded) <= $targetBytes) {
+                return $encoded;
+            }
+        }
+
+        return (string) $image->toWebp(40);
     }
 
     public function gallery(User $actor, ListQueryData $queryData, array $filters = []): OffsetPaginationResult
@@ -161,7 +212,10 @@ class PalletPhotoService
 
     public function delete(PalletPhoto $photo): void
     {
-        Storage::disk($photo->disk)->delete($photo->path);
+        // Retain compatibility with files uploaded before photos moved into the database.
+        if ($photo->path !== null && $photo->disk !== null) {
+            Storage::disk($photo->disk)->delete($photo->path);
+        }
         $photo->delete();
     }
 

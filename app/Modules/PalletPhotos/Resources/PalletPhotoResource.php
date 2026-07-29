@@ -23,6 +23,8 @@ class PalletPhotoResource extends JsonResource
             'original_name' => $this->original_name,
             'mime_type' => $this->mime_type,
             'size_bytes' => $this->size_bytes,
+            'width' => $this->width,
+            'height' => $this->height,
             'expires_at' => $this->expires_at,
             'url' => $this->expires_at?->isFuture()
                 ? URL::temporarySignedRoute('pallet-photos.file', now()->addMinutes(config('pallet-photos.temporary_url_minutes')), ['palletPhoto' => $this->id])
