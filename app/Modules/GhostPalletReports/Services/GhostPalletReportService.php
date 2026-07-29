@@ -77,6 +77,9 @@ class GhostPalletReportService extends BaseCrudService
                     // incomplete instead of silently assigning "pallet".
                     'type' => 'invullen!',
                     'asset_type' => 'invullen!',
+                    // No QR code exists for this pallet. This is intentionally
+                    // null; the generated pallet name identifies the record.
+                    'qr_code' => null,
                     'pallet_name' => $this->nextNoQrPalletName(),
                     'current_location' => $entry['location'] ?? $data->location,
                     'notes' => $entry['note'] ?? $data->notes,
