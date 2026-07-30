@@ -212,7 +212,7 @@ class ReferenceDataSeeder extends Seeder
                 ModuleKey::Statuses->value => ['can_list', 'can_view'],
                 ModuleKey::AuditLogs->value => ['can_list', 'can_view'],
                 ModuleKey::GhostPalletReports->value => ['can_list', 'can_view', 'can_create', 'can_update'],
-                ModuleKey::Services->value => ['can_list', 'can_view'],
+                ModuleKey::Services->value => ['can_list', 'can_view', 'can_create'],
             ],
             'technician' => [
                 ModuleKey::Pallets->value => ['can_list', 'can_view', 'can_update'],
