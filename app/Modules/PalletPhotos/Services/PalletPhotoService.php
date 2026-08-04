@@ -59,6 +59,12 @@ class PalletPhotoService
      */
     public function compressForDatabase(UploadedFile $image, string $field = 'image'): array
     {
+        $preparedWebp = $this->readPreparedWebp($image);
+
+        if ($preparedWebp !== null) {
+            return $preparedWebp;
+        }
+
         try {
             $processed = Image::read($image->getRealPath());
             $processed->scaleDown(width: 1600, height: 1200);
@@ -73,6 +79,34 @@ class PalletPhotoService
                 $field => [__('The image could not be processed.')],
             ]);
         }
+    }
+
+    /**
+     * Browser uploads are already normalized to a small WebP. Store those
+     * bytes directly, avoiding quality loss and allowing uploads even when
+     * the optional server image driver is unavailable.
+     *
+     * @return array{0: string, 1: int, 2: int}|null
+     */
+    private function readPreparedWebp(UploadedFile $image): ?array
+    {
+        if ($image->getMimeType() !== 'image/webp') {
+            return null;
+        }
+
+        $content = file_get_contents($image->getRealPath());
+
+        if (! is_string($content) || $content === '' || strlen($content) > 120 * 1024) {
+            return null;
+        }
+
+        $dimensions = @getimagesize($image->getRealPath());
+
+        if (! is_array($dimensions) || ! isset($dimensions[0], $dimensions[1])) {
+            return null;
+        }
+
+        return [$content, (int) $dimensions[0], (int) $dimensions[1]];
     }
 
     private function encodeNearTargetSize(object $image): string
@@ -170,6 +204,14 @@ class PalletPhotoService
     public function canAccess(User $actor, PalletPhoto $photo): bool
     {
         if ($actor->isAdmin()) {
+            return true;
+        }
+
+        $isTechnician = strtolower((string) $actor->role?->name) === 'technician';
+        $isServicePhoto = $photo->service_report_id !== null
+            && in_array($photo->type, [PalletPhotoType::DamageReport, PalletPhotoType::ServiceReport], true);
+
+        if ($isTechnician && $isServicePhoto && $actor->hasModulePermission('services', 'view')) {
             return true;
         }
 

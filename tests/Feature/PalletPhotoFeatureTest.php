@@ -104,6 +104,70 @@ class PalletPhotoFeatureTest extends TestCase
         $this->assertSame($auditLogCount, AuditLog::query()->count());
     }
 
+    public function test_driver_can_create_a_damage_report_with_description_and_photo(): void
+    {
+        $driver = $this->makeUser('driver');
+        $customer = $this->makeUser('customer');
+        $status = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $pallet = Pallet::factory()->create([
+            'user_id' => $customer->id,
+            'current_status_id' => $status->id,
+        ]);
+
+        $response = $this->actingAs($driver, 'api')->post(
+            '/api/service_reports',
+            [
+                'pallet_id' => $pallet->id,
+                'severity' => 'medium',
+                'issue_type' => 'damage',
+                'description' => 'Driver found a cracked support during delivery.',
+                'image' => UploadedFile::fake()->image('driver-damage.jpg', 1200, 800),
+            ],
+        );
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('data.pallet_id', $pallet->id)
+            ->assertJsonPath('data.reported_by_user_id', $driver->id)
+            ->assertJsonPath('data.problem_description', 'Driver found a cracked support during delivery.')
+            ->assertJsonPath('data.photos.0.type', 'damage_report');
+
+        $this->assertDatabaseHas('service_reports', [
+            'pallet_id' => $pallet->id,
+            'reported_by_user_id' => $driver->id,
+            'status' => 'open',
+            'issue_type' => 'damage',
+            'description' => 'Driver found a cracked support during delivery.',
+        ]);
+        $this->assertDatabaseHas('pallet_photos', [
+            'pallet_id' => $pallet->id,
+            'uploaded_by_user_id' => $driver->id,
+            'type' => 'damage_report',
+        ]);
+    }
+
+    public function test_driver_is_authorized_to_create_a_damage_report(): void
+    {
+        $driver = $this->makeUser('driver');
+        $customer = $this->makeUser('customer');
+        $status = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $pallet = Pallet::factory()->create([
+            'user_id' => $customer->id,
+            'current_status_id' => $status->id,
+        ]);
+
+        $this->actingAs($driver, 'api')
+            ->post('/api/service_reports', [
+                'pallet_id' => $pallet->id,
+                'severity' => 'medium',
+                'issue_type' => 'damage',
+                'description' => 'Driver found damage during delivery.',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.reported_by_user_id', $driver->id)
+            ->assertJsonPath('data.problem_description', 'Driver found damage during delivery.');
+    }
+
     public function test_delivery_photo_is_reencoded_to_webp_in_the_database_and_can_be_opened_from_the_gallery(): void
     {
         $admin = $this->makeUser('admin');
