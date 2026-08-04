@@ -80,6 +80,15 @@ class PalletController extends ApiController
         return $this->successItem($updatedPallet, PalletResource::class, __('Pallet location updated successfully.'));
     }
 
+    public function updateRepairStatus(Pallet $pallet): JsonResponse
+    {
+        $this->authorize('updateRepairStatus', $pallet);
+        $data = request()->validate(['is_for_repair' => ['required', 'boolean']]);
+        $updatedPallet = $this->palletService->updateRepairStatus($pallet, (bool) $data['is_for_repair'], request()->user());
+
+        return $this->successItem($updatedPallet, PalletResource::class, __('Pallet repair status updated successfully.'));
+    }
+
     public function updateClientStatus(UpdateClientPalletStatusRequest $request, Pallet $pallet): JsonResponse
     {
         $this->authorize('updateClientTracking', $pallet);

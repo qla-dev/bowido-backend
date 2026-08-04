@@ -39,6 +39,7 @@ class Pallet extends Model
         'debt_eur',
         'is_active',
         'is_ghost',
+        'is_for_repair',
         'ghost_pallet_report_id',
         'metadata',
     ];
@@ -53,6 +54,7 @@ class Pallet extends Model
             'debt_eur' => 'decimal:2',
             'is_active' => 'boolean',
             'is_ghost' => 'boolean',
+            'is_for_repair' => 'boolean',
             'metadata' => 'array',
         ];
     }

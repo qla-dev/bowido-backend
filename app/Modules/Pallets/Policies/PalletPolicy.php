@@ -50,6 +50,14 @@ class PalletPolicy extends BaseModulePolicy
         return $this->canManageClientTracking($user, $model);
     }
 
+    public function updateRepairStatus(User $user, mixed $model): bool
+    {
+        $user->loadMissing('role');
+        $roleName = strtolower((string) $user->role?->name);
+
+        return in_array($roleName, ['admin', 'technician'], true);
+    }
+
     public function updateDeliveryLocation(User $user, Pallet $pallet): bool
     {
         if ($user->isCustomer()) {

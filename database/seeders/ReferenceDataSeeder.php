@@ -123,14 +123,6 @@ class ReferenceDataSeeder extends Seeder
                 'is_active' => true,
                 'sort_order' => 80,
             ],
-            [
-                'name' => 'Voor reparatie',
-                'slug' => 'service',
-                'description' => 'Pallet is in Bowido service or repair.',
-                'is_billable' => false,
-                'is_active' => true,
-                'sort_order' => 90,
-            ],
         ])->each(function (array $status): void {
             Status::query()->updateOrCreate(
                 ['slug' => $status['slug']],

@@ -25,6 +25,7 @@ class PalletRepository extends BaseRepository
             'current_location' => 'current_location',
             'is_active' => 'is_active',
             'is_ghost' => 'is_ghost',
+            'is_for_repair' => 'is_for_repair',
         ];
     }
 

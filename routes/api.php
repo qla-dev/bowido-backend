@@ -58,6 +58,7 @@ Route::middleware('auth:web,api')->group(function (): void {
     Route::apiResource('statuses', StatusController::class);
     Route::get('pallets/dashboard-stats', PalletStatsController::class);
     Route::put('pallets/{pallet}/current-location', [PalletController::class, 'updateCurrentLocation']);
+    Route::put('pallets/{pallet}/repair-status', [PalletController::class, 'updateRepairStatus']);
     Route::put('pallets/{pallet}/client-status', [PalletController::class, 'updateClientStatus']);
     Route::post('pallets/scan-customer-possession', [PalletController::class, 'scanCustomerPossession']);
     Route::post('pallets/scan-lookup', [PalletController::class, 'scanLookup'])
