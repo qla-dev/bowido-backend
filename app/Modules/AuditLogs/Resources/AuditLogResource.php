@@ -36,7 +36,9 @@ class AuditLogResource extends JsonResource
             'made_by_user_id' => $this->made_by_user_id,
             'made_by_user_name' => $this->whenLoaded('madeByUser', fn (): ?string => $this->madeByUser?->name),
             'event_type' => $this->event_type,
-            'type' => str_contains((string) $this->event_type, 'qr_code') ? 'qr_version' : 'status',
+            'type' => str_contains((string) $this->event_type, 'qr_code')
+                ? 'qr_version'
+                : ($this->event_type === 'repair_status_changed' ? 'repair' : 'status'),
             'note' => $this->note,
             'old_status_id' => $this->old_status_id,
             'new_status_id' => $this->new_status_id,

@@ -58,8 +58,13 @@ Route::middleware('auth:web,api')->group(function (): void {
     Route::apiResource('statuses', StatusController::class);
     Route::get('pallets/dashboard-stats', PalletStatsController::class);
     Route::put('pallets/{pallet}/current-location', [PalletController::class, 'updateCurrentLocation']);
+    Route::put('pallets/{pallet}/repair-status', [PalletController::class, 'updateRepairStatus']);
     Route::put('pallets/{pallet}/client-status', [PalletController::class, 'updateClientStatus']);
     Route::post('pallets/scan-customer-possession', [PalletController::class, 'scanCustomerPossession']);
+    Route::post('pallets/scan-lookup', [PalletController::class, 'scanLookup'])
+        ->middleware('throttle:120,1');
+    Route::post('pallets/scan-diagnostics', [PalletController::class, 'scanDiagnostics'])
+        ->middleware('throttle:60,1');
     Route::put('pallets/{pallet}/claim-customer-possession', [PalletController::class, 'claimCustomerPossession']);
     Route::put('pallets/{pallet}/delivery-location', [DeliveryLocationController::class, 'update']);
     Route::post('pallets/{pallet}/overdue-invoice/send', [InvoiceController::class, 'sendOverduePalletInvoice']);

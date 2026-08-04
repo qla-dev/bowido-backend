@@ -8,7 +8,9 @@ use App\Modules\Pallets\Models\Pallet;
 use App\Modules\Pallets\Repositories\PalletRepository;
 use App\Modules\Pallets\Rules\PalletCustomerAssignmentRule;
 use App\Modules\Shared\Services\BaseCrudService;
+use App\Modules\Shared\Services\AuditTrailService;
 use App\Modules\Shared\Services\TrackableAssetService;
+use App\Modules\Shared\Enums\AuditEventType;
 use App\Modules\Statuses\Repositories\StatusRepository;
 use App\Modules\Users\Models\User;
 use App\Modules\Users\Repositories\UserRepository;
@@ -19,13 +21,13 @@ use Illuminate\Validation\ValidationException;
 
 class PalletService extends BaseCrudService
 {
-    private const SERVICE_ADDRESS = 'Nikole Tesle 71, 74000 Doboj';
 
     public function __construct(
         private readonly PalletRepository $palletRepository,
         private readonly UserRepository $userRepository,
         private readonly StatusRepository $statusRepository,
         private readonly TrackableAssetService $trackableAssetService,
+        private readonly AuditTrailService $auditTrailService,
         private readonly PalletCustomerAssignmentRule $customerAssignmentRule,
         private readonly OverduePalletInvoiceService $overduePalletInvoiceService,
     ) {
@@ -44,8 +46,6 @@ class PalletService extends BaseCrudService
 
             if (in_array($status->slug, ['bih-nl-transport', 'nl-bih-transport'], true)) {
                 $attributes['current_location'] = 'Na putu';
-            } elseif ($status->slug === 'service') {
-                $attributes['current_location'] = self::SERVICE_ADDRESS;
             } elseif ($this->customerAssignmentRule->statusAllowsCustomer($status)) {
                 $customer = $data->userId
                     ? User::query()->with('customerDetail')->find($data->userId)
@@ -78,8 +78,6 @@ class PalletService extends BaseCrudService
 
             if (in_array($nextStatus->slug, ['bih-nl-transport', 'nl-bih-transport'], true)) {
                 $attributes['current_location'] = 'Na putu';
-            } elseif ($nextStatus->slug === 'service') {
-                $attributes['current_location'] = self::SERVICE_ADDRESS;
             }
 
             if ($this->customerAssignmentRule->statusAllowsCustomer($nextStatus)) {
@@ -162,6 +160,36 @@ class PalletService extends BaseCrudService
             $updatedPallet = $this->palletRepository->update($lockedPallet, [
                 'current_location' => trim($location),
             ]);
+
+            return $updatedPallet->load(['user.role', 'user.customerDetail', 'currentStatus', 'deliveryLocation']);
+        });
+    }
+
+    public function updateRepairStatus(Pallet $pallet, bool $isForRepair, User $actor): Pallet
+    {
+        return DB::transaction(function () use ($pallet, $isForRepair, $actor): Pallet {
+            $lockedPallet = $this->palletRepository->lockForUpdate($pallet->id);
+            $wasForRepair = $lockedPallet->is_for_repair;
+
+            if ($wasForRepair === $isForRepair) {
+                return $lockedPallet->load(['user.role', 'user.customerDetail', 'currentStatus', 'deliveryLocation']);
+            }
+
+            /** @var Pallet $updatedPallet */
+            $updatedPallet = $this->palletRepository->update($lockedPallet, [
+                'is_for_repair' => $isForRepair,
+            ]);
+
+            $this->auditTrailService->record(
+                palletId: $updatedPallet->id,
+                madeByUserId: $actor->id,
+                eventType: AuditEventType::RepairStatusChanged,
+                note: $isForRepair ? __('Pallet marked for repair.') : __('Pallet unmarked for repair.'),
+                context: [
+                    'old_is_for_repair' => $wasForRepair,
+                    'new_is_for_repair' => $isForRepair,
+                ],
+            );
 
             return $updatedPallet->load(['user.role', 'user.customerDetail', 'currentStatus', 'deliveryLocation']);
         });

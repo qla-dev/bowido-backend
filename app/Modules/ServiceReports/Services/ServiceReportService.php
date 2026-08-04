@@ -9,6 +9,8 @@ use App\Modules\ServiceReports\DTOs\ServiceReportData;
 use App\Modules\ServiceReports\Models\ServiceReport;
 use App\Modules\ServiceReports\Repositories\ServiceReportRepository;
 use App\Modules\Shared\Enums\ServiceReportStatus;
+use App\Modules\Shared\Enums\AuditEventType;
+use App\Modules\Shared\Services\AuditTrailService;
 use App\Modules\Shared\Services\BaseCrudService;
 use App\Modules\Users\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -21,6 +23,7 @@ class ServiceReportService extends BaseCrudService
         private readonly ServiceReportRepository $serviceReportRepository,
         private readonly PalletRepository $palletRepository,
         private readonly PalletPhotoService $palletPhotoService,
+        private readonly AuditTrailService $auditTrailService,
     ) {
         parent::__construct($serviceReportRepository);
     }
@@ -44,6 +47,22 @@ class ServiceReportService extends BaseCrudService
                 'image_path' => $data->imagePath,
                 'metadata' => $data->metadata,
             ];
+
+            $lockedPallet = $this->palletRepository->lockForUpdate($data->palletId);
+            if (! $lockedPallet->is_for_repair) {
+                $this->palletRepository->update($lockedPallet, ['is_for_repair' => true]);
+                $this->auditTrailService->record(
+                    palletId: $lockedPallet->id,
+                    madeByUserId: $actor->id,
+                    eventType: AuditEventType::RepairStatusChanged,
+                    note: __('Pallet marked for repair by a service report.'),
+                    context: [
+                        'old_is_for_repair' => false,
+                        'new_is_for_repair' => true,
+                        'service_report' => true,
+                    ],
+                );
+            }
 
             /** @var ServiceReport $serviceReport */
             $serviceReport = $this->serviceReportRepository->create($attributes);

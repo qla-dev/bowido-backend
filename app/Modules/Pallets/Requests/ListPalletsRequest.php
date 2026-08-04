@@ -17,6 +17,7 @@ class ListPalletsRequest extends PaginatedIndexRequest
             'current_location' => ['sometimes', 'string', 'max:255'],
             'is_active' => ['sometimes', 'boolean'],
             'is_ghost' => ['sometimes', 'boolean'],
+            'is_for_repair' => ['sometimes', 'boolean'],
         ];
     }
 }
