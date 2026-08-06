@@ -156,7 +156,39 @@ class PalletPhotoService
             }
         }
 
-        foreach (['pallet_id', 'client_id', 'type', 'warehouse_scope', 'uploaded_by_user_id'] as $filter) {
+        if (isset($filters['client_id']) && $filters['client_id'] !== '') {
+            $clientId = (int) $filters['client_id'];
+            $query->where(function (Builder $clientQuery) use ($clientId): void {
+                $clientQuery
+                    ->where('client_id', $clientId)
+                    ->orWhere(function (Builder $legacyClientQuery) use ($clientId): void {
+                        $legacyClientQuery
+                            ->whereNull('client_id')
+                            ->whereHas('pallet', fn (Builder $palletQuery) => $palletQuery->where('user_id', $clientId));
+                    });
+            });
+        }
+
+        if (isset($filters['status_id']) && $filters['status_id'] !== '') {
+            $statusId = (int) $filters['status_id'];
+            $query->where(function (Builder $statusQuery) use ($statusId): void {
+                $statusQuery
+                    ->where('new_status_id', $statusId)
+                    ->orWhere(function (Builder $legacyStatusQuery) use ($statusId): void {
+                        $legacyStatusQuery
+                            ->whereNull('new_status_id')
+                            ->where('old_status_id', $statusId);
+                    })
+                    ->orWhere(function (Builder $currentStatusQuery) use ($statusId): void {
+                        $currentStatusQuery
+                            ->whereNull('new_status_id')
+                            ->whereNull('old_status_id')
+                            ->whereHas('pallet', fn (Builder $palletQuery) => $palletQuery->where('current_status_id', $statusId));
+                    });
+            });
+        }
+
+        foreach (['pallet_id', 'type', 'warehouse_scope', 'uploaded_by_user_id'] as $filter) {
             if (isset($filters[$filter]) && $filters[$filter] !== '') {
                 $query->where($filter, $filters[$filter]);
             }
