@@ -56,12 +56,47 @@ class AuthFeatureTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_kvk_lookup_returns_all_company_names_for_a_shared_number(): void
+    {
+        $firstUser = $this->makeUser('customer', ['name' => 'First Contact', 'email' => 'first@example.com']);
+        $secondUser = $this->makeUser('customer', ['name' => 'Second Contact', 'email' => 'second@example.com']);
+        CustomerDetail::factory()->create([
+            'user_id' => $firstUser->id,
+            'kvk' => '24172907',
+            'company_name' => 'Alpha Company B.V.',
+            'city' => 'Amsterdam',
+        ]);
+        CustomerDetail::factory()->create([
+            'user_id' => $secondUser->id,
+            'kvk' => '24.172.907',
+            'company_name' => 'Beta Company B.V.',
+            'city' => 'Rotterdam',
+        ]);
+        Http::fake();
+
+        $this->postJson('/api/auth/kvk-lookup', ['kvk' => '24172907'])
+            ->assertOk()
+            ->assertJsonPath('data.source', 'database')
+            ->assertJsonPath('data.company_names.0', 'Alpha Company B.V.')
+            ->assertJsonPath('data.company_names.1', 'Beta Company B.V.')
+            ->assertJsonPath('data.company_options.1.name', 'Beta Company B.V.')
+            ->assertJsonPath('data.company_options.1.fields.email', 'second@example.com')
+            ->assertJsonPath('data.company_options.1.fields.city', 'Rotterdam');
+
+        Http::assertNothingSent();
+    }
+
     public function test_kvk_lookup_falls_back_to_basisprofiel_and_maps_the_registration_fields(): void
     {
         Http::fake([
             'api.test.kvk/*' => Http::response([
                 'kvkNummer' => '12345678',
                 'naam' => 'KVK Company B.V.',
+                'statutaireNaam' => 'KVK Company Holding B.V.',
+                'handelsnamen' => [
+                    ['naam' => 'KVK Company B.V.'],
+                    ['naam' => 'KVK Express'],
+                ],
                 'emailadres' => 'contact@kvk-company.example',
                 '_embedded' => [
                     'hoofdvestiging' => [
@@ -91,11 +126,62 @@ class AuthFeatureTest extends TestCase
             ->assertJsonPath('data.fields.house_number', '12')
             ->assertJsonPath('data.fields.postal_code', '1234 AB')
             ->assertJsonPath('data.fields.city', 'Amsterdam')
+            ->assertJsonPath('data.company_names.0', 'KVK Company B.V.')
+            ->assertJsonPath('data.company_names.1', 'KVK Company Holding B.V.')
+            ->assertJsonPath('data.company_names.3', 'KVK Express')
             ->assertJsonMissing(['test-kvk-key']);
 
         $this->assertDatabaseMissing('customer_details', ['kvk' => '12345678']);
 
         Http::assertSent(fn ($request) => $request->hasHeader('apikey', 'test-kvk-key'));
+    }
+
+    public function test_kvk_registration_updates_the_selected_company_for_a_shared_number(): void
+    {
+        $firstUser = $this->makeUser('customer', ['name' => 'First Contact', 'email' => 'first@example.com']);
+        $secondUser = $this->makeUser('customer', ['name' => 'Second Contact', 'email' => 'second@example.com']);
+        CustomerDetail::factory()->create([
+            'user_id' => $firstUser->id,
+            'kvk' => '24172907',
+            'company_name' => 'Alpha Company B.V.',
+        ]);
+        CustomerDetail::factory()->create([
+            'user_id' => $secondUser->id,
+            'kvk' => '24.172.907',
+            'company_name' => 'Beta Company B.V.',
+        ]);
+
+        $this->postJson('/api/auth/kvk-register', [
+            'kvk' => '24172907',
+            'name' => 'Beta Company B.V.',
+            'email' => 'registered-beta@example.com',
+            'country' => null,
+            'phone_number' => null,
+            'fixed_phone' => null,
+            'street' => null,
+            'house_number' => null,
+            'postal_code' => null,
+            'city' => null,
+            'warehouse1_street' => null,
+            'warehouse1_house_number' => null,
+            'warehouse1_postal_code' => null,
+            'warehouse1_city' => null,
+            'warehouse2_street' => null,
+            'warehouse2_house_number' => null,
+            'warehouse2_postal_code' => null,
+            'warehouse2_city' => null,
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('users', [
+            'id' => $secondUser->id,
+            'email' => 'registered-beta@example.com',
+        ]);
+        $this->assertDatabaseHas('users', [
+            'id' => $firstUser->id,
+            'email' => 'first@example.com',
+        ]);
     }
 
     public function test_kvk_lookup_uses_the_first_main_branch_address_when_no_visit_address_exists(): void

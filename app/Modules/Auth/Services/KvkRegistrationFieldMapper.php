@@ -38,14 +38,11 @@ class KvkRegistrationFieldMapper
     public function fromKvkProfile(array $profile, string $kvk): array
     {
         $address = $this->preferredAddress($profile);
+        $companyNames = $this->companyNamesFromKvkProfile($profile);
+
         return $this->withoutEmpty([
             'kvk' => $kvk,
-            'name' => $this->firstValue([
-                data_get($profile, 'naam'),
-                data_get($profile, '_embedded.hoofdvestiging.eersteHandelsnaam'),
-                data_get($profile, 'handelsnamen.0.naam'),
-                data_get($profile, 'handelsnaam'),
-            ]),
+            'name' => $companyNames[0] ?? null,
             'email' => $this->firstValue([
                 data_get($profile, 'email'),
                 data_get($profile, 'emailadres'),
@@ -75,6 +72,46 @@ class KvkRegistrationFieldMapper
                 data_get($address, 'woonplaats'),
             ]),
         ]);
+    }
+
+    /** @param array<string, mixed> $profile
+     *  @return array<int, string> */
+    public function companyNamesFromKvkProfile(array $profile): array
+    {
+        $names = [
+            data_get($profile, 'naam'),
+            data_get($profile, 'statutaireNaam'),
+            data_get($profile, 'handelsnaam'),
+            data_get($profile, '_embedded.hoofdvestiging.eersteHandelsnaam'),
+        ];
+
+        foreach (['handelsnamen', '_embedded.hoofdvestiging.handelsnamen'] as $path) {
+            $tradeNames = data_get($profile, $path, []);
+            if (! is_array($tradeNames)) {
+                continue;
+            }
+
+            foreach ($tradeNames as $tradeName) {
+                $names[] = is_array($tradeName) ? ($tradeName['naam'] ?? null) : $tradeName;
+            }
+        }
+
+        $uniqueNames = [];
+        $seen = [];
+        foreach ($names as $name) {
+            $normalized = $this->value($name);
+            if ($normalized === null) {
+                continue;
+            }
+
+            $key = mb_strtolower($normalized);
+            if (! isset($seen[$key])) {
+                $seen[$key] = true;
+                $uniqueNames[] = $normalized;
+            }
+        }
+
+        return $uniqueNames;
     }
 
     /** @param array<string, mixed> $profile

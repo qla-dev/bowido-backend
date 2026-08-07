@@ -14,18 +14,39 @@ class KvkCompanyLookupService
     {
     }
 
-    /** @return array{source: 'database'|'kvk'|'not_found', fields: array<string, string>} */
+    /** @return array{source: 'database'|'kvk'|'not_found', fields: array<string, string>, company_names: array<int, string>, company_options: array<int, array{name: string, fields: array<string, string>}>} */
     public function lookup(string $kvk): array
     {
-        $detail = CustomerDetail::query()
+        $details = CustomerDetail::query()
             ->with('user')
             ->whereRaw("replace(replace(replace(replace(replace(kvk, ' ', ''), '.', ''), '-', ''), '/', ''), '(', '') = ?", [$kvk])
-            ->first();
+            ->orderBy('company_name')
+            ->get();
 
-        if ($detail !== null) {
+        if ($details->isNotEmpty()) {
             Log::info('KVK registration lookup completed.', ['kvk' => $kvk, 'source' => 'database', 'response_status' => 200]);
 
-            return ['source' => 'database', 'fields' => $this->mapper->fromCustomerDetail($detail)];
+            $companyOptions = $details
+                ->map(function (CustomerDetail $detail): array {
+                    $name = trim((string) $detail->company_name);
+
+                    return [
+                        'name' => $name,
+                        'fields' => $this->completeRegistrationFields(
+                            array_merge($this->mapper->fromCustomerDetail($detail), ['name' => $name]),
+                        ),
+                    ];
+                })
+                ->filter(fn (array $option): bool => $option['name'] !== '')
+                ->unique(fn (array $option): string => mb_strtolower($option['name']))
+                ->values();
+
+            return [
+                'source' => 'database',
+                'fields' => $this->mapper->fromCustomerDetail($details->first()),
+                'company_names' => $companyOptions->pluck('name')->all(),
+                'company_options' => $companyOptions->all(),
+            ];
         }
 
         $profile = $this->fetchProfile($kvk);
@@ -33,12 +54,23 @@ class KvkCompanyLookupService
         if ($profile === null) {
             Log::info('KVK registration lookup completed.', ['kvk' => $kvk, 'source' => 'kvk', 'response_status' => 404]);
 
-            return ['source' => 'not_found', 'fields' => []];
+            return ['source' => 'not_found', 'fields' => [], 'company_names' => [], 'company_options' => []];
         }
 
         Log::info('KVK registration lookup completed.', ['kvk' => $kvk, 'source' => 'kvk', 'response_status' => 200]);
 
-        return ['source' => 'kvk', 'fields' => $this->mapper->fromKvkProfile($profile, $kvk)];
+        $fields = $this->mapper->fromKvkProfile($profile, $kvk);
+        $companyNames = $this->mapper->companyNamesFromKvkProfile($profile);
+
+        return [
+            'source' => 'kvk',
+            'fields' => $fields,
+            'company_names' => $companyNames,
+            'company_options' => array_map(
+                fn (string $name): array => ['name' => $name, 'fields' => array_merge($fields, ['name' => $name])],
+                $companyNames,
+            ),
+        ];
     }
 
     /** @return array<string, mixed>|null */
@@ -89,5 +121,17 @@ class KvkCompanyLookupService
         }
 
         return $profile;
+    }
+
+    /** @param array<string, string> $fields
+     *  @return array<string, string> */
+    private function completeRegistrationFields(array $fields): array
+    {
+        return array_merge(array_fill_keys([
+            'kvk', 'name', 'country', 'email', 'phone_number', 'fixed_phone',
+            'street', 'house_number', 'postal_code', 'city',
+            'warehouse1_street', 'warehouse1_house_number', 'warehouse1_postal_code', 'warehouse1_city',
+            'warehouse2_street', 'warehouse2_house_number', 'warehouse2_postal_code', 'warehouse2_city',
+        ], ''), $fields);
     }
 }
