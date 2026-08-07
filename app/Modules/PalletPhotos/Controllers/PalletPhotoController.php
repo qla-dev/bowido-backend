@@ -51,6 +51,23 @@ class PalletPhotoController extends ApiController
         );
     }
 
+    public function destroy(PalletPhoto $palletPhoto): JsonResponse
+    {
+        $palletPhoto->loadMissing('pallet');
+        $actor = request()->user();
+
+        abort_unless(
+            $actor->isAdmin() || $palletPhoto->uploaded_by_user_id === $actor->id,
+            403,
+            __('You can only delete photos that you uploaded.'),
+        );
+        $this->authorize('update', $palletPhoto->pallet);
+
+        $this->palletPhotoService->delete($palletPhoto);
+
+        return $this->success(null, __('Pallet photo deleted successfully.'));
+    }
+
     public function file(PalletPhoto $palletPhoto): StreamedResponse|Response
     {
         $palletPhoto->loadMissing('pallet');

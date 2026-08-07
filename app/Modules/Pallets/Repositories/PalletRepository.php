@@ -119,15 +119,15 @@ class PalletRepository extends BaseRepository
                 $direction,
             )->orderBy('id'),
             'location' => 'current_location',
-            'lastUpdate' => 'last_status_changed_at',
-            'last_update' => 'last_status_changed_at',
-            'dueDate' => 'last_status_changed_at',
-            'due_date' => 'last_status_changed_at',
-            'deadline' => 'overdue_days',
-            'daysOut' => 'days_at_customer',
-            'days_out' => 'days_at_customer',
-            'overdueDays' => 'overdue_days',
-            'overdue_days' => 'overdue_days',
+            'lastUpdate' => fn (Builder $query, string $direction) => $this->orderBySentDate($query, $direction),
+            'last_update' => fn (Builder $query, string $direction) => $this->orderBySentDate($query, $direction),
+            'dueDate' => fn (Builder $query, string $direction) => $this->orderByDueDate($query, $direction),
+            'due_date' => fn (Builder $query, string $direction) => $this->orderByDueDate($query, $direction),
+            'deadline' => fn (Builder $query, string $direction) => $this->orderByDueDate($query, $direction),
+            'daysOut' => fn (Builder $query, string $direction) => $this->orderByDueDate($query, $direction),
+            'days_out' => fn (Builder $query, string $direction) => $this->orderByDueDate($query, $direction),
+            'overdueDays' => fn (Builder $query, string $direction) => $this->orderByDueDate($query, $direction),
+            'overdue_days' => fn (Builder $query, string $direction) => $this->orderByDueDate($query, $direction),
             'debt' => 'debt_eur',
             'created_at' => 'created_at',
         ];
@@ -140,6 +140,35 @@ class PalletRepository extends BaseRepository
         return $query
             ->orderByRaw("COALESCE(NULLIF(pallet_name, ''), NULLIF(reference_code, ''), qr_code) {$direction}")
             ->orderBy('id');
+    }
+
+    private function orderBySentDate(Builder $query, string $direction): Builder
+    {
+        $direction = $direction === 'asc' ? 'asc' : 'desc';
+        $statusSlug = '(SELECT statuses.slug FROM statuses WHERE statuses.id = pallets.current_status_id LIMIT 1)';
+        $hasSentDate = "pallets.last_status_changed_at IS NOT NULL AND COALESCE({$statusSlug}, '') NOT IN ('bowido-nl', 'bowido-bih', 'bowido_warehouse', 'bowido_nl')";
+
+        return $query
+            ->orderByRaw("CASE WHEN {$hasSentDate} THEN 0 ELSE 1 END ASC")
+            ->orderByRaw("CASE WHEN {$hasSentDate} THEN pallets.last_status_changed_at END {$direction}")
+            ->orderBy('pallets.id');
+    }
+
+    private function orderByDueDate(Builder $query, string $direction): Builder
+    {
+        $direction = $direction === 'asc' ? 'asc' : 'desc';
+        $statusGraceDays = '(SELECT statuses.grace_period_days FROM statuses WHERE statuses.id = pallets.current_status_id LIMIT 1)';
+        $statusIsBillable = '(SELECT statuses.is_billable FROM statuses WHERE statuses.id = pallets.current_status_id LIMIT 1)';
+        $statusSlug = '(SELECT statuses.slug FROM statuses WHERE statuses.id = pallets.current_status_id LIMIT 1)';
+        $clientGraceDays = '(SELECT customer_details.grace_period_days FROM customer_details WHERE customer_details.user_id = pallets.user_id LIMIT 1)';
+        $graceDays = "CASE WHEN COALESCE({$statusSlug}, '') IN ('bih-nl-transport', 'nl-bih-transport', 'transport', 'transport_bih_nl', 'transport_nl_bih') THEN COALESCE(pallets.grace_days, {$statusGraceDays}, 3) WHEN COALESCE({$statusIsBillable}, 0) = 1 THEN COALESCE(pallets.grace_days, {$clientGraceDays}, {$statusGraceDays}, 0) ELSE 0 END";
+        $hasDueDate = "pallets.last_status_changed_at IS NOT NULL AND ({$graceDays}) > 0";
+        $dueDate = "TIMESTAMPADD(DAY, ({$graceDays}), DATE(pallets.last_status_changed_at))";
+
+        return $query
+            ->orderByRaw("CASE WHEN {$hasDueDate} THEN 0 ELSE 1 END ASC")
+            ->orderByRaw("CASE WHEN {$hasDueDate} THEN {$dueDate} END {$direction}")
+            ->orderBy('pallets.id');
     }
 
     public function lockForUpdate(int $id): Pallet

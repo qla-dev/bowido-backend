@@ -8,7 +8,6 @@ use App\Modules\Statuses\Resources\StatusResource;
 use App\Modules\Users\Resources\UserResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\URL;
 
 class AuditLogResource extends JsonResource
 {
@@ -53,7 +52,7 @@ class AuditLogResource extends JsonResource
             'new_qr_code' => $this->new_qr_code,
             'context' => $this->context,
             'status_change_photo_url' => $statusChangePhoto?->expires_at?->isFuture()
-                ? URL::temporarySignedRoute('pallet-photos.file', now()->addMinutes(config('pallet-photos.temporary_url_minutes')), ['palletPhoto' => $statusChangePhoto->id])
+                ? route('pallet-photos.file', ['palletPhoto' => $statusChangePhoto->id])
                 : null,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

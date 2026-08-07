@@ -47,8 +47,8 @@ Route::middleware('auth:web,api')->group(function (): void {
         ->middleware('throttle:reverse-geocoding');
     Route::get('gallery', GalleryController::class);
     Route::get('pallet-photos/{palletPhoto}/file', [PalletPhotoController::class, 'file'])
-        ->middleware('signed')
         ->name('pallet-photos.file');
+    Route::delete('pallet-photos/{palletPhoto}', [PalletPhotoController::class, 'destroy']);
     Route::get('customer-details/me', [CustomerDetailController::class, 'me']);
     Route::put('customer-details/me', [CustomerDetailController::class, 'upsertMe']);
     Route::apiResource('roles', RoleController::class);

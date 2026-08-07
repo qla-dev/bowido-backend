@@ -19,6 +19,7 @@ class InvoiceItemResource extends JsonResource
             'id' => $this->id,
             'invoice_id' => $this->invoice_id,
             'pallet_id' => $this->pallet_id,
+            'pallet_name' => $this->whenLoaded('pallet', fn (): ?string => $this->pallet?->pallet_name ?: $this->pallet?->reference_code),
             'pallet_qr' => $this->whenLoaded('pallet', fn (): ?string => $this->pallet?->qr_code),
             'description' => $this->description,
             'period_start' => $this->period_start,
