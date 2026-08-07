@@ -15,6 +15,60 @@ class PalletPhotoFeatureTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_gallery_can_filter_by_customer_and_photo_status(): void
+    {
+        $admin = $this->makeUser('admin');
+        $customerA = $this->makeUser('customer');
+        $customerB = $this->makeUser('customer');
+        CustomerDetail::factory()->create(['user_id' => $customerA->id, 'company_name' => 'Customer A']);
+        CustomerDetail::factory()->create(['user_id' => $customerB->id, 'company_name' => 'Customer B']);
+        $warehouseStatus = Status::query()->where('slug', 'bowido-nl')->firstOrFail();
+        $customerStatus = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $palletA = Pallet::factory()->create([
+            'user_id' => $customerA->id,
+            'current_status_id' => $warehouseStatus->id,
+        ]);
+        $palletB = Pallet::factory()->create([
+            'user_id' => $customerB->id,
+            'current_status_id' => $customerStatus->id,
+        ]);
+        $photoA = PalletPhoto::query()->create([
+            'pallet_id' => $palletA->id,
+            'old_status_id' => $customerStatus->id,
+            'new_status_id' => $warehouseStatus->id,
+            'client_id' => null,
+            'uploaded_by_user_id' => $admin->id,
+            'type' => 'scan',
+            'mime_type' => 'image/webp',
+            'size_bytes' => 5,
+            'expires_at' => now()->addHour(),
+        ]);
+        $photoB = PalletPhoto::query()->create([
+            'pallet_id' => $palletB->id,
+            'old_status_id' => $warehouseStatus->id,
+            'new_status_id' => $customerStatus->id,
+            'client_id' => $customerB->id,
+            'uploaded_by_user_id' => $admin->id,
+            'type' => 'scan',
+            'mime_type' => 'image/webp',
+            'size_bytes' => 5,
+            'expires_at' => now()->addHour(),
+        ]);
+
+        $this->actingAs($admin, 'api')
+            ->getJson("/api/gallery?client_id={$customerA->id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $photoA->id);
+
+        $this->actingAs($admin, 'api')
+            ->getJson("/api/gallery?status_id={$customerStatus->id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $photoB->id)
+            ->assertJsonPath('data.0.status.id', $customerStatus->id);
+    }
+
     public function test_scan_photo_is_stored_in_the_database_without_an_audit_log(): void
     {
         $admin = $this->makeUser('admin');

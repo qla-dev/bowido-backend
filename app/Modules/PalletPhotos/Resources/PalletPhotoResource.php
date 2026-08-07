@@ -10,6 +10,8 @@ class PalletPhotoResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $photoStatus = $this->newStatus ?? $this->oldStatus ?? $this->pallet?->currentStatus;
+
         return [
             'id' => $this->id,
             'pallet_id' => $this->pallet_id,
@@ -30,6 +32,11 @@ class PalletPhotoResource extends JsonResource
                 ? URL::temporarySignedRoute('pallet-photos.file', now()->addMinutes(config('pallet-photos.temporary_url_minutes')), ['palletPhoto' => $this->id])
                 : null,
             'created_at' => $this->created_at,
+            'status' => $photoStatus ? [
+                'id' => $photoStatus->id,
+                'name' => $photoStatus->name,
+                'slug' => $photoStatus->slug,
+            ] : null,
             'pallet' => $this->whenLoaded('pallet', fn (): array => [
                 'id' => $this->pallet->id,
                 'qr_code' => $this->pallet->qr_code,

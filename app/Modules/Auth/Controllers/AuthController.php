@@ -140,6 +140,8 @@ class AuthController extends ApiController
         return $this->success([
             'source' => $result['source'],
             'fields' => $result['fields'],
+            'company_names' => $result['company_names'],
+            'company_options' => $result['company_options'],
         ], __('Customer details found.'));
     }
 
@@ -172,8 +174,21 @@ class AuthController extends ApiController
         ]);
         $kvk = preg_replace('/[\s.-]+/', '', trim($data['kvk']));
         $user = DB::transaction(function () use ($data, $kvk): User {
-            $detail = CustomerDetail::query()->with('user')->lockForUpdate()->whereRaw("replace(replace(replace(kvk, ' ', ''), '.', ''), '-', '') = ?", [$kvk])->first();
-            if ($detail === null) throw ValidationException::withMessages(['kvk' => [__('KVK number was not found.')]]);
+            $details = CustomerDetail::query()
+                ->with('user')
+                ->lockForUpdate()
+                ->whereRaw("replace(replace(replace(kvk, ' ', ''), '.', ''), '-', '') = ?", [$kvk])
+                ->get();
+            if ($details->isEmpty()) throw ValidationException::withMessages(['kvk' => [__('KVK number was not found.')]]);
+
+            $selectedName = mb_strtolower(trim($data['name']));
+            $detail = $details->first(
+                fn (CustomerDetail $candidate): bool => mb_strtolower(trim((string) $candidate->company_name)) === $selectedName,
+            );
+            if ($detail === null && $details->count() > 1) {
+                throw ValidationException::withMessages(['name' => [__('Choose a company name associated with this KVK number.')]]);
+            }
+            $detail ??= $details->first();
             $existingUserId = $detail->user_id;
             $emailTaken = ! CustomerImportExceptions::allowsSharedEmail($data['email'])
                 && User::query()->where('email', strtolower($data['email']))->when($existingUserId, fn ($query) => $query->whereKeyNot($existingUserId))->exists();
