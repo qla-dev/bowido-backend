@@ -121,6 +121,28 @@ class PalletPhotoFeatureTest extends TestCase
             ->assertJsonPath('data.0.id', $photo->id);
     }
 
+    public function test_uploader_can_delete_a_pallet_photo(): void
+    {
+        $admin = $this->makeUser('admin');
+        $status = Status::query()->where('slug', 'bowido-nl')->firstOrFail();
+        $pallet = Pallet::factory()->create(['current_status_id' => $status->id]);
+        $photo = PalletPhoto::query()->create([
+            'pallet_id' => $pallet->id,
+            'uploaded_by_user_id' => $admin->id,
+            'type' => 'scan',
+            'mime_type' => 'image/webp',
+            'size_bytes' => 5,
+            'expires_at' => now()->addHour(),
+        ]);
+
+        $this->actingAs($admin, 'api')
+            ->deleteJson("/api/pallet-photos/{$photo->id}")
+            ->assertOk()
+            ->assertJsonPath('data', null);
+
+        $this->assertDatabaseMissing('pallet_photos', ['id' => $photo->id]);
+    }
+
     public function test_damage_report_photo_is_stored_with_the_damage_type_without_an_audit_log(): void
     {
         $admin = $this->makeUser('admin');
