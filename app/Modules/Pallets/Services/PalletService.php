@@ -260,6 +260,12 @@ class PalletService extends BaseCrudService
         /** @var Pallet $pallet */
         $pallet = $this->palletRepository->findOrFail($id, $actor);
 
+        if ($pallet->is_ghost) {
+            $this->deleteNoQrPallet($pallet);
+
+            return;
+        }
+
         if ($this->palletRepository->hasLinkedRecords($pallet)) {
             throw ValidationException::withMessages([
                 'pallet' => [__('Pallets with linked history, reports, no-QR pairings, or invoice items cannot be deleted.')],
@@ -267,6 +273,32 @@ class PalletService extends BaseCrudService
         }
 
         $this->palletRepository->delete($pallet);
+    }
+
+    /**
+     * No-QR pallets are temporary return/report records. Unlike tracked
+     * pallets, their report photo, delivery location, and audit trail belong
+     * exclusively to the record being removed and must not prevent a return.
+     */
+    private function deleteNoQrPallet(Pallet $pallet): void
+    {
+        if ($pallet->serviceReports()->exists() || $pallet->invoiceItems()->exists()) {
+            throw ValidationException::withMessages([
+                'pallet' => [__('Pallets with linked service reports or invoice items cannot be deleted.')],
+            ]);
+        }
+
+        DB::transaction(function () use ($pallet): void {
+            $lockedPallet = $this->palletRepository->lockForUpdate($pallet->id);
+
+            $lockedPallet->photos()->delete();
+            $lockedPallet->deliveryLocation()->delete();
+            $lockedPallet->auditLogs()->delete();
+
+            // ghost_pallet_reports.paired_pallet_id is null-on-delete, so the
+            // report stays available while its removed pallet link is cleared.
+            $this->palletRepository->delete($lockedPallet);
+        });
     }
 
     private function ensureDependenciesAreActive(PalletData $data): void
