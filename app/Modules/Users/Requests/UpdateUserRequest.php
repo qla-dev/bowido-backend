@@ -25,6 +25,7 @@ class UpdateUserRequest extends ApiFormRequest
             'is_active' => ['sometimes', 'boolean'],
             'customer_details' => ['sometimes', 'array'],
             'customer_details.company_name' => ['required_with:customer_details', 'string', 'max:255'],
+            'customer_details.contact_person' => ['nullable', 'string', 'max:255'],
             'customer_details.country' => ['nullable', 'string', 'max:255'],
             'customer_details.kvk' => ['nullable', 'string', 'max:255'],
             'customer_details.billing_email' => ['nullable', 'email', 'max:255'],

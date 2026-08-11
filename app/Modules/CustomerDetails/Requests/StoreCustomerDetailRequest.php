@@ -17,6 +17,7 @@ class StoreCustomerDetailRequest extends ApiFormRequest
         return [
             'user_id' => ['required', 'integer', 'exists:users,id', 'unique:customer_details,user_id'],
             'company_name' => ['required', 'string', 'max:255'],
+            'contact_person' => ['nullable', 'string', 'max:255'],
             'country' => ['nullable', 'string', 'max:255'],
             'kvk' => $kvkRules,
             'billing_email' => ['nullable', 'email', 'max:255'],

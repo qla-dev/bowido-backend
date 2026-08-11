@@ -55,7 +55,7 @@ class PalletPolicy extends BaseModulePolicy
         $user->loadMissing('role');
         $roleName = strtolower((string) $user->role?->name);
 
-        return in_array($roleName, ['admin', 'technician'], true);
+        return in_array($roleName, ['admin', 'technician', 'admin_service'], true);
     }
 
     public function updateDeliveryLocation(User $user, Pallet $pallet): bool

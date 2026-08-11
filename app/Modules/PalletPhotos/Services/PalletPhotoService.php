@@ -147,7 +147,8 @@ class PalletPhotoService
             'newStatus',
             'uploadedByUser.role',
             'serviceReport',
-        ]);
+        ])
+            ->whereHas('pallet.currentStatus', fn (Builder $statusQuery) => $statusQuery->whereIn('slug', ['bij-de-klant', 'ophalen-klant']));
 
         if (! $actor->isAdmin()) {
             $scope = $actor->modulePermissionScope('image_gallery');
@@ -171,24 +172,10 @@ class PalletPhotoService
 
         if (isset($filters['status_id']) && $filters['status_id'] !== '') {
             $statusId = (int) $filters['status_id'];
-            $query->where(function (Builder $statusQuery) use ($statusId): void {
-                $statusQuery
-                    ->where('new_status_id', $statusId)
-                    ->orWhere(function (Builder $legacyStatusQuery) use ($statusId): void {
-                        $legacyStatusQuery
-                            ->whereNull('new_status_id')
-                            ->where('old_status_id', $statusId);
-                    })
-                    ->orWhere(function (Builder $currentStatusQuery) use ($statusId): void {
-                        $currentStatusQuery
-                            ->whereNull('new_status_id')
-                            ->whereNull('old_status_id')
-                            ->whereHas('pallet', fn (Builder $palletQuery) => $palletQuery->where('current_status_id', $statusId));
-                    });
-            });
+            $query->whereHas('pallet', fn (Builder $palletQuery) => $palletQuery->where('current_status_id', $statusId));
         }
 
-        foreach (['pallet_id', 'type', 'warehouse_scope', 'uploaded_by_user_id'] as $filter) {
+        foreach (['pallet_id', 'warehouse_scope', 'uploaded_by_user_id'] as $filter) {
             if (isset($filters[$filter]) && $filters[$filter] !== '') {
                 $query->where($filter, $filters[$filter]);
             }

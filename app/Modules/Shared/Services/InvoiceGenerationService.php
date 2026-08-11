@@ -41,6 +41,11 @@ class InvoiceGenerationService
         }
 
         return DB::transaction(function () use ($customer, $periodStart, $periodEnd, $dueAt, $currency, $notes, $invoice, $customerDetail): Invoice {
+            // Use the same customer-level lock as automatic monthly billing so
+            // manual and automatic generation cannot create parallel invoices
+            // for the same customer and period.
+            User::query()->whereKey($customer->id)->lockForUpdate()->firstOrFail();
+
             $lineItems = $this->buildLineItems(
                 customer: $customer,
                 periodStart: $periodStart,

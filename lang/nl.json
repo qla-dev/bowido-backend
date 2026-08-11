@@ -74,6 +74,7 @@
     "The selected user is not active.": "De geselecteerde gebruiker is niet actief.",
     "The selected customer must have active customer details.": "De geselecteerde klant moet actieve klantgegevens hebben.",
     "Storage billing for pallet :qr_code": "Opslagfacturatie voor pallet :qr_code",
+    "Overdue storage for pallet :qr_code": "Achterstallige opslag voor pallet :qr_code",
     "Invoice items must reference pallets owned by the invoiced user.": "Factuurregels moeten verwijzen naar pallets die eigendom zijn van de gefactureerde gebruiker.",
     "You are not allowed to create a report for this pallet.": "Je mag geen rapport voor deze pallet aanmaken.",
     "Resolved reports cannot be reopened through this endpoint.": "Opgeloste rapporten kunnen via dit endpoint niet opnieuw worden geopend.",
@@ -95,5 +96,7 @@
     "Dear customer,": "Beste klant,",
     "Your Bowido invoice :number is attached.": "Uw Bowido-factuur :number is bijgevoegd.",
     "Kind regards,": "Met vriendelijke groet,",
-    "The selected user must be a customer.": "De geselecteerde gebruiker moet een klant zijn."
+    "The selected user must be a customer.": "De geselecteerde gebruiker moet een klant zijn.",
+    ":actor admitted pallet to service.": ":actor heeft de bok aangemeld voor service.",
+    ":actor removed pallet from service.": ":actor heeft de bok uit service verwijderd."
 }

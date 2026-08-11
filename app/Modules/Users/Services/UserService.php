@@ -95,12 +95,13 @@ class UserService extends BaseCrudService
             return null;
         }
 
+        $existingCustomerDetail = $this->customerDetailRepository->findByUserId($user->id);
+
         $customerDetailData = CustomerDetailData::fromArray([
+            ...($existingCustomerDetail?->toArray() ?? []),
             ...$data->customerDetails,
             'user_id' => $user->id,
         ]);
-
-        $existingCustomerDetail = $this->customerDetailRepository->findByUserId($user->id);
 
         if ($existingCustomerDetail instanceof CustomerDetail) {
             /** @var CustomerDetail $updatedCustomerDetail */

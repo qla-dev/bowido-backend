@@ -11,10 +11,20 @@ use Throwable;
 
 class DeliveryPhotoService
 {
+    private const DELIVERY_INFORMATION_STATUS_SLUGS = ['bij-de-klant', 'ophalen-klant'];
+
     public function __construct(private readonly PalletPhotoService $palletPhotos) {}
 
     public function store(Pallet $pallet, User $actor, UploadedFile $photo): PalletPhoto
     {
+        $pallet->loadMissing('currentStatus');
+
+        if (! in_array($pallet->currentStatus?->slug, self::DELIVERY_INFORMATION_STATUS_SLUGS, true)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'photo' => [__('Delivery photos can only be saved for pallets at the customer or ready for customer pickup.')],
+            ]);
+        }
+
         [$encodedPhoto, $width, $height] = $this->palletPhotos->compressForDatabase($photo, 'photo');
 
         try {

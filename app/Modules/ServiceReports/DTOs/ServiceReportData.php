@@ -16,7 +16,8 @@ readonly class ServiceReportData
         public ?string $issueType,
         public string $description,
         public ?string $resolutionNote,
-        public ?UploadedFile $image,
+        /** @var array<int, UploadedFile> */
+        public array $images,
         public ?string $imagePath,
         public ?array $metadata,
     ) {
@@ -34,7 +35,10 @@ readonly class ServiceReportData
             issueType: $attributes['issue_type'] ?? null,
             description: (string) ($attributes['description'] ?? ''),
             resolutionNote: $attributes['resolution_note'] ?? null,
-            image: $attributes['image'] ?? null,
+            images: array_values(array_filter([
+                $attributes['image'] ?? null,
+                ...(is_array($attributes['images'] ?? null) ? $attributes['images'] : []),
+            ], static fn (mixed $image): bool => $image instanceof UploadedFile)),
             imagePath: $attributes['image_path'] ?? null,
             metadata: isset($attributes['metadata']) && is_array($attributes['metadata']) ? $attributes['metadata'] : null,
         );

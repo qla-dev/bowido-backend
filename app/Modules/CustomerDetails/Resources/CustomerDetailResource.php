@@ -20,6 +20,7 @@ class CustomerDetailResource extends JsonResource
             'user_id' => $this->user_id,
             'company_name' => $this->company_name,
             'name' => $this->company_name,
+            'contact_person' => $this->contact_person,
             'country' => $this->country,
             'kvk' => $this->kvk,
             'kvk_number' => $this->kvk,
