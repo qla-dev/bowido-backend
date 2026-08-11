@@ -18,7 +18,7 @@ class BowidoInvoiceMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: __('Bowido invoice :number', ['number' => $this->invoice->invoice_number]));
+        return new Envelope(subject: __('BoWiDo factuur :number', ['number' => $this->invoice->invoice_number]));
     }
 
     public function content(): Content
@@ -28,6 +28,6 @@ class BowidoInvoiceMail extends Mailable
 
     public function attachments(): array
     {
-        return [Attachment::fromData(fn () => $this->pdf, $this->filename)->withMime('application/pdf')];
+        return [Attachment::fromData(fn (): string => $this->pdf, $this->filename)->withMime('application/pdf')];
     }
 }

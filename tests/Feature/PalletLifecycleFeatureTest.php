@@ -134,6 +134,39 @@ class PalletLifecycleFeatureTest extends TestCase
             ->assertJsonPath('data.current_location', 'Pickupstraat 9, 1000 AA Amsterdam');
     }
 
+    public function test_admin_can_change_or_clear_a_pallet_client_assignment(): void
+    {
+        $admin = $this->makeUser('admin');
+        $firstCustomer = $this->makeUser('customer');
+        $secondCustomer = $this->makeUser('customer');
+        $atCustomer = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $pallet = Pallet::factory()->create([
+            'user_id' => $firstCustomer->id,
+            'current_status_id' => $atCustomer->id,
+        ]);
+
+        $this->actingAs($admin, 'api')
+            ->putJson('/api/pallets/'.$pallet->id, [
+                'user_id' => $secondCustomer->id,
+                'current_status_id' => $atCustomer->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.user_id', $secondCustomer->id);
+
+        $this->actingAs($admin, 'api')
+            ->putJson('/api/pallets/'.$pallet->id, [
+                'user_id' => null,
+                'current_status_id' => $atCustomer->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.user_id', null);
+
+        $this->assertDatabaseHas('pallets', [
+            'id' => $pallet->id,
+            'user_id' => null,
+        ]);
+    }
+
     public function test_customer_pickup_can_use_the_pallet_delivery_address_as_its_primary_location(): void
     {
         $admin = $this->makeUser('admin');
@@ -189,6 +222,25 @@ class PalletLifecycleFeatureTest extends TestCase
         ])->assertOk()
             ->assertJsonPath('data.current_status_slug', 'service')
             ->assertJsonPath('data.current_location', 'Nikole Tesle 71, 74000 Doboj');
+    }
+
+    public function test_repair_status_keeps_only_the_two_most_recent_notes(): void
+    {
+        $admin = $this->makeUser('admin', ['name' => 'Bowido Admin']);
+        $pallet = Pallet::factory()->create([
+            'notes' => "Previous repair note\nOlder repair note",
+            'is_for_repair' => false,
+        ]);
+
+        $this->actingAs($admin, 'api')
+            ->putJson('/api/pallets/'.$pallet->id.'/repair-status', ['is_for_repair' => true])
+            ->assertOk()
+            ->assertJsonPath('data.notes', "Bowido Admin admitted pallet to service.\nPrevious repair note");
+
+        $this->assertSame(
+            "Bowido Admin admitted pallet to service.\nPrevious repair note",
+            $pallet->fresh()->notes,
+        );
     }
 
     public function test_status_and_qr_changes_create_audit_logs_with_the_previous_and_new_locations(): void

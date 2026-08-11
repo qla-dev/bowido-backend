@@ -67,11 +67,11 @@ class ServiceReportService extends BaseCrudService
             /** @var ServiceReport $serviceReport */
             $serviceReport = $this->serviceReportRepository->create($attributes);
 
-            if ($data->image !== null) {
+            foreach ($data->images as $image) {
                 $this->palletPhotoService->store(
                     pallet: $pallet,
                     actor: $actor,
-                    image: $data->image,
+                    image: $image,
                     type: $data->issueType === 'service' ? PalletPhotoType::ServiceReport : PalletPhotoType::DamageReport,
                     serviceReport: $serviceReport,
                 );
@@ -103,14 +103,16 @@ class ServiceReportService extends BaseCrudService
                 'metadata' => $data->metadata,
             ], static fn ($value): bool => $value !== null && $value !== '');
 
-            if ($data->image !== null) {
-                $this->palletPhotoService->store(
-                    pallet: $lockedServiceReport->pallet,
-                    actor: $actor,
-                    image: $data->image,
-                    type: $data->issueType === 'service' ? PalletPhotoType::ServiceReport : PalletPhotoType::DamageReport,
-                    serviceReport: $lockedServiceReport,
-                );
+            if ($data->images !== []) {
+                foreach ($data->images as $image) {
+                    $this->palletPhotoService->store(
+                        pallet: $lockedServiceReport->pallet,
+                        actor: $actor,
+                        image: $image,
+                        type: $data->issueType === 'service' ? PalletPhotoType::ServiceReport : PalletPhotoType::DamageReport,
+                        serviceReport: $lockedServiceReport,
+                    );
+                }
             } elseif ($data->imagePath !== null) {
                 $attributes['image_path'] = $data->imagePath;
             }

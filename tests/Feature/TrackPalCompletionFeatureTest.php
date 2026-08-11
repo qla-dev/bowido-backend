@@ -90,14 +90,27 @@ class TrackPalCompletionFeatureTest extends TestCase
         CustomerDetail::factory()->create(['user_id' => $customer->id, 'billing_email' => 'colakovic.vedad@qla.dev', 'street' => 'Invoice Road 2']);
         $invoice = Invoice::factory()->create(['user_id' => $customer->id]);
 
-        $this->actingAs($admin, 'api')->get('/api/invoices/'.$invoice->id.'/preview')
+        $dutchPreview = $this->actingAs($admin, 'api')->get('/api/invoices/'.$invoice->id.'/preview')
             ->assertOk()->assertHeader('content-type', 'application/pdf');
+        $this->assertStringContainsString('-NL.pdf', (string) $dutchPreview->headers->get('content-disposition'));
+
+        $requestedEnglishPreview = $this->actingAs($admin, 'api')->get('/api/invoices/'.$invoice->id.'/preview?language=en')
+            ->assertOk()->assertHeader('content-type', 'application/pdf');
+        $this->assertStringContainsString('-NL.pdf', (string) $requestedEnglishPreview->headers->get('content-disposition'));
+
         $this->actingAs($admin, 'api')->postJson('/api/invoices/'.$invoice->id.'/send', ['recipient' => 'attacker@example.test'])
             ->assertOk()->assertJsonPath('data.recipient', 'colakovic.vedad@qla.dev');
-        Mail::assertSent(BowidoInvoiceMail::class, 1);
+        Mail::assertSent(BowidoInvoiceMail::class, function (BowidoInvoiceMail $mail): bool {
+            $attachments = $mail->attachments();
+
+            $this->assertCount(1, $attachments);
+            $this->assertStringContainsString('-NL.pdf', (string) $attachments[0]->as);
+
+            return $mail->hasTo('colakovic.vedad@qla.dev');
+        });
     }
 
-    public function test_leaving_customer_status_sends_an_overdue_pallet_invoice_to_the_billing_recipient(): void
+    public function test_moving_from_customer_to_customer_pickup_creates_an_invoice_without_mailing_it(): void
     {
         Carbon::setTestNow('2026-07-16 10:00:00');
         Mail::fake();
@@ -110,7 +123,7 @@ class TrackPalCompletionFeatureTest extends TestCase
             'default_price_per_day' => 2.50,
         ]);
         $atCustomer = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
-        $warehouse = Status::query()->where('slug', 'bowido-nl')->firstOrFail();
+        $customerPickup = Status::query()->where('slug', 'ophalen-klant')->firstOrFail();
         $pallet = Pallet::factory()->create([
             'user_id' => $customer->id,
             'current_status_id' => $atCustomer->id,
@@ -119,15 +132,68 @@ class TrackPalCompletionFeatureTest extends TestCase
         ]);
 
         $this->actingAs($admin, 'api')->putJson('/api/pallets/'.$pallet->id, [
-            'current_status_id' => $warehouse->id,
-        ])->assertOk()->assertJsonPath('data.user_id', null);
+            'current_status_id' => $customerPickup->id,
+        ])->assertOk()->assertJsonPath('data.user_id', $customer->id);
 
         $invoice = Invoice::query()->with('items')->sole();
-        $this->assertSame('sent', $invoice->status);
+        $this->assertSame('issued', $invoice->status);
+        $this->assertNull($invoice->mailed_at);
         $this->assertSame('7.50', $invoice->total_amount);
         $this->assertSame(3, $invoice->items->sole()->billed_days);
         $this->assertSame($pallet->id, $invoice->items->sole()->pallet_id);
-        Mail::assertSent(BowidoInvoiceMail::class, fn (BowidoInvoiceMail $mail): bool => $mail->hasTo('colakovic.vedad@qla.dev'));
+        Mail::assertNothingSent();
+    }
+
+    public function test_monthly_invoice_command_mails_only_invoices_created_in_the_previous_month(): void
+    {
+        Carbon::setTestNow('2026-08-01 00:05:00');
+        Mail::fake();
+        $customer = $this->makeUser('customer');
+        CustomerDetail::factory()->create([
+            'user_id' => $customer->id,
+            'billing_email' => 'colakovic.vedad@qla.dev',
+        ]);
+        $previousMonthInvoice = Invoice::factory()->create([
+            'user_id' => $customer->id,
+            'status' => 'issued',
+        ]);
+        $previousMonthInvoice->forceFill(['created_at' => now()->subDay()])->saveQuietly();
+        $currentMonthInvoice = Invoice::factory()->create([
+            'user_id' => $customer->id,
+            'status' => 'issued',
+        ]);
+
+        $this->artisan('invoices:send-previous-month')->assertSuccessful();
+
+        $this->assertSame('sent', $previousMonthInvoice->fresh()->status);
+        $this->assertNotNull($previousMonthInvoice->fresh()->mailed_at);
+        $this->assertSame('issued', $currentMonthInvoice->fresh()->status);
+        Mail::assertSent(BowidoInvoiceMail::class, 1);
+    }
+
+    public function test_moving_from_customer_to_a_non_pickup_status_does_not_create_an_automatic_invoice(): void
+    {
+        Carbon::setTestNow('2026-07-16 10:00:00');
+        $admin = $this->makeUser('admin');
+        $customer = $this->makeUser('customer');
+        CustomerDetail::factory()->create([
+            'user_id' => $customer->id,
+            'grace_period_days' => 2,
+            'default_price_per_day' => 2.50,
+        ]);
+        $atCustomer = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $warehouse = Status::query()->where('slug', 'bowido-nl')->firstOrFail();
+        $pallet = Pallet::factory()->create([
+            'user_id' => $customer->id,
+            'current_status_id' => $atCustomer->id,
+            'last_status_changed_at' => now()->subDays(5),
+        ]);
+
+        $this->actingAs($admin, 'api')->putJson('/api/pallets/'.$pallet->id, [
+            'current_status_id' => $warehouse->id,
+        ])->assertOk();
+
+        $this->assertDatabaseCount('invoices', 0);
     }
 
     public function test_dashboard_can_send_an_overdue_pallet_invoice(): void

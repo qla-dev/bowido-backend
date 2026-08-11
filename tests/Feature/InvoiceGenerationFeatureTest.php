@@ -72,4 +72,54 @@ class InvoiceGenerationFeatureTest extends TestCase
             ->assertJsonPath('data.items.0.billed_days', 2)
             ->assertJsonPath('data.items.0.amount', '20.00');
     }
+
+    public function test_invoice_generation_uses_the_current_billable_status_timestamp_for_overdue_pallets(): void
+    {
+        Carbon::setTestNow('2026-08-10 10:00:00');
+
+        $admin = $this->makeUser('admin');
+        $customer = $this->makeUser('customer');
+
+        CustomerDetail::factory()->create([
+            'user_id' => $customer->id,
+            'default_price_per_day' => 2,
+            'grace_period_days' => 14,
+            'is_active' => true,
+        ]);
+
+        $atCustomer = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $pallet = Pallet::factory()->create([
+            'user_id' => $customer->id,
+            'current_status_id' => $atCustomer->id,
+            'qr_code' => 'OVERDUE-PALLET-1',
+            'last_status_changed_at' => Carbon::parse('2026-07-10 10:00:00'),
+        ]);
+
+        // This mirrors legacy audit data that can be newer than the stored
+        // customer-status timestamp used by the dashboard overdue calculation.
+        $auditLog = AuditLog::query()->create([
+            'pallet_id' => $pallet->id,
+            'made_by_user_id' => $admin->id,
+            'event_type' => 'status_changed',
+            'new_status_id' => $atCustomer->id,
+            'new_client_id' => $customer->id,
+        ]);
+        $auditLog->forceFill(['created_at' => Carbon::parse('2026-08-10 09:00:00')])->saveQuietly();
+
+        $response = $this->actingAs($admin, 'api')->postJson('/api/invoices', [
+            'user_id' => $customer->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'due_at' => '2026-08-24',
+            'currency' => 'EUR',
+        ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('data.total_amount', '16.00')
+            ->assertJsonCount(1, 'data.items')
+            ->assertJsonPath('data.items.0.pallet_id', $pallet->id)
+            ->assertJsonPath('data.items.0.billed_days', 8)
+            ->assertJsonPath('data.items.0.amount', '16.00');
+    }
 }

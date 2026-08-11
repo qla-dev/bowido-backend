@@ -26,6 +26,7 @@ class InvoiceResource extends JsonResource
             'period_start' => $this->period_start,
             'period_end' => $this->period_end,
             'issued_at' => $this->issued_at,
+            'mailed_at' => $this->mailed_at,
             'issue_date' => $this->issued_at?->toDateString() ?? $this->period_end?->toDateString(),
             'due_at' => $this->due_at,
             'due_date' => $this->due_at?->toDateString(),

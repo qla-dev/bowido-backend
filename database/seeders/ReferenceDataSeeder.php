@@ -67,7 +67,7 @@ class ReferenceDataSeeder extends Seeder
                 'description' => 'Pallet is at the customer location and active billing starts once a customer is assigned.',
                 'is_billable' => true,
                 'grace_period_days' => 14,
-                'price_per_day' => 2.50,
+                'price_per_day' => 2.00,
                 'is_active' => true,
                 'sort_order' => 20,
             ],
@@ -354,8 +354,8 @@ class ReferenceDataSeeder extends Seeder
             ],
             [
                 'slug' => ModuleKey::ImageGallery->value,
-                'name' => 'Image Gallery',
-                'description' => 'Secure pallet image gallery with warehouse visibility scopes.',
+                'name' => 'Delivery Information',
+                'description' => 'Delivery photos for pallets leaving the Bowido NL warehouse.',
                 'legacy_slugs' => [],
             ],
         ];

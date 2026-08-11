@@ -38,6 +38,7 @@ class ServiceReportController extends ApiController
             ServiceReportData::fromArray([
                 ...$request->validated(),
                 'image' => $request->file('image'),
+                'images' => $request->file('images', []),
             ]),
             $request->user(),
         );
@@ -66,6 +67,7 @@ class ServiceReportController extends ApiController
                 ...$serviceReport->toArray(),
                 ...$request->validated(),
                 'image' => $request->file('image'),
+                'images' => $request->file('images', []),
             ]),
             $request->user(),
         );

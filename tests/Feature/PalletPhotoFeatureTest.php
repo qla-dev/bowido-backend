@@ -15,7 +15,7 @@ class PalletPhotoFeatureTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_gallery_can_filter_by_customer_and_photo_status(): void
+    public function test_gallery_shows_all_image_types_for_pallets_at_the_customer_or_ready_for_pickup(): void
     {
         $admin = $this->makeUser('admin');
         $customerA = $this->makeUser('customer');
@@ -24,6 +24,7 @@ class PalletPhotoFeatureTest extends TestCase
         CustomerDetail::factory()->create(['user_id' => $customerB->id, 'company_name' => 'Customer B']);
         $warehouseStatus = Status::query()->where('slug', 'bowido-nl')->firstOrFail();
         $customerStatus = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $pickupStatus = Status::query()->where('slug', 'ophalen-klant')->firstOrFail();
         $palletA = Pallet::factory()->create([
             'user_id' => $customerA->id,
             'current_status_id' => $warehouseStatus->id,
@@ -32,13 +33,17 @@ class PalletPhotoFeatureTest extends TestCase
             'user_id' => $customerB->id,
             'current_status_id' => $customerStatus->id,
         ]);
+        $palletC = Pallet::factory()->create([
+            'user_id' => $customerA->id,
+            'current_status_id' => $pickupStatus->id,
+        ]);
         $photoA = PalletPhoto::query()->create([
             'pallet_id' => $palletA->id,
-            'old_status_id' => $customerStatus->id,
+            'old_status_id' => $warehouseStatus->id,
             'new_status_id' => $warehouseStatus->id,
             'client_id' => null,
             'uploaded_by_user_id' => $admin->id,
-            'type' => 'scan',
+            'type' => 'delivery_photo',
             'mime_type' => 'image/webp',
             'size_bytes' => 5,
             'expires_at' => now()->addHour(),
@@ -49,17 +54,27 @@ class PalletPhotoFeatureTest extends TestCase
             'new_status_id' => $customerStatus->id,
             'client_id' => $customerB->id,
             'uploaded_by_user_id' => $admin->id,
+            'type' => 'delivery_photo',
+            'mime_type' => 'image/webp',
+            'size_bytes' => 5,
+            'expires_at' => now()->addHour(),
+        ]);
+        $photoC = PalletPhoto::query()->create([
+            'pallet_id' => $palletC->id,
+            'old_status_id' => $customerStatus->id,
+            'new_status_id' => $pickupStatus->id,
+            'client_id' => $customerA->id,
+            'uploaded_by_user_id' => $admin->id,
             'type' => 'scan',
             'mime_type' => 'image/webp',
             'size_bytes' => 5,
             'expires_at' => now()->addHour(),
         ]);
-
         $this->actingAs($admin, 'api')
             ->getJson("/api/gallery?client_id={$customerA->id}")
             ->assertOk()
             ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.id', $photoA->id);
+            ->assertJsonPath('data.0.id', $photoC->id);
 
         $this->actingAs($admin, 'api')
             ->getJson("/api/gallery?status_id={$customerStatus->id}")
@@ -124,7 +139,7 @@ class PalletPhotoFeatureTest extends TestCase
     public function test_uploader_can_delete_a_pallet_photo(): void
     {
         $admin = $this->makeUser('admin');
-        $status = Status::query()->where('slug', 'bowido-nl')->firstOrFail();
+        $status = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
         $pallet = Pallet::factory()->create(['current_status_id' => $status->id]);
         $photo = PalletPhoto::query()->create([
             'pallet_id' => $pallet->id,
@@ -222,6 +237,31 @@ class PalletPhotoFeatureTest extends TestCase
         ]);
     }
 
+    public function test_damage_report_can_store_multiple_photos(): void
+    {
+        $admin = $this->makeUser('admin');
+        $customer = $this->makeUser('customer');
+        $status = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $pallet = Pallet::factory()->create([
+            'user_id' => $customer->id,
+            'current_status_id' => $status->id,
+        ]);
+
+        $this->actingAs($admin, 'api')
+            ->post('/api/service_reports', [
+                'pallet_id' => $pallet->id,
+                'description' => 'Damage with more than one photo.',
+                'images' => [
+                    UploadedFile::fake()->image('damage-one.jpg', 1200, 800),
+                    UploadedFile::fake()->image('damage-two.jpg', 1200, 800),
+                ],
+            ])
+            ->assertCreated()
+            ->assertJsonCount(2, 'data.photos');
+
+        $this->assertDatabaseCount('pallet_photos', 2);
+    }
+
     public function test_driver_is_authorized_to_create_a_damage_report(): void
     {
         $driver = $this->makeUser('driver');
@@ -248,7 +288,7 @@ class PalletPhotoFeatureTest extends TestCase
     {
         $admin = $this->makeUser('admin');
         $customer = $this->makeUser('customer');
-        $status = Status::query()->where('slug', 'bowido-nl')->firstOrFail();
+        $status = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
         $pallet = Pallet::factory()->create([
             'user_id' => $customer->id,
             'current_status_id' => $status->id,
@@ -285,5 +325,21 @@ class PalletPhotoFeatureTest extends TestCase
             ->get($signedPath)
             ->assertOk()
             ->assertHeader('content-type', 'image/webp');
+    }
+
+    public function test_delivery_photo_can_only_be_saved_for_a_pallet_at_the_customer_or_ready_for_pickup(): void
+    {
+        $admin = $this->makeUser('admin');
+        $warehouseStatus = Status::query()->where('slug', 'bowido-nl')->firstOrFail();
+        $pallet = Pallet::factory()->create(['current_status_id' => $warehouseStatus->id]);
+
+        $this->actingAs($admin, 'api')
+            ->post("/api/pallets/{$pallet->id}/delivery-photo", [
+                'photo' => UploadedFile::fake()->image('delivery.png'),
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('photo');
+
+        $this->assertDatabaseMissing('pallet_photos', ['pallet_id' => $pallet->id]);
     }
 }

@@ -41,9 +41,12 @@ class InvoiceDeliveryService
             'recipient' => $recipient,
         ]);
 
-        $pdf = $this->pdfService->render($invoice);
-        Mail::to($recipient)->send(new BowidoInvoiceMail($invoice, $pdf, $this->pdfService->filename($invoice)));
-        $invoice->forceFill(['status' => InvoiceStatus::Sent->value])->save();
+        $document = $this->pdfService->document($invoice);
+        Mail::to($recipient)->send(new BowidoInvoiceMail($invoice, $document['contents'], $document['filename']));
+        $invoice->forceFill([
+            'status' => InvoiceStatus::Sent->value,
+            'mailed_at' => now(),
+        ])->save();
 
         Log::info('Invoice email delivered.', [
             'source' => $source,
