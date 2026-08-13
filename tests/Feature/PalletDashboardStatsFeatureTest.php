@@ -56,6 +56,12 @@ class PalletDashboardStatsFeatureTest extends TestCase
             'current_status_id' => $customerPickup->id,
             'last_status_changed_at' => now()->subDay(),
         ]);
+        Pallet::factory()->create([
+            'user_id' => $customer->id,
+            'current_status_id' => $warehouse->id,
+            'qr_code' => null,
+            'last_status_changed_at' => now()->subDay(),
+        ]);
 
         $this->actingAs($admin, 'api')
             ->getJson('/api/pallets/dashboard-stats')

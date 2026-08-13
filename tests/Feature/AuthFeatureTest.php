@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Modules\CustomerDetails\Models\CustomerDetail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class AuthFeatureTest extends TestCase
@@ -17,6 +18,38 @@ class AuthFeatureTest extends TestCase
 
         config()->set('services.kvk.api_key', 'test-kvk-key');
         config()->set('services.kvk.basisprofiel_url', 'https://api.test.kvk/basisprofielen');
+    }
+
+    public function test_authenticated_user_can_change_password_after_confirming_current_password(): void
+    {
+        $user = $this->makeUser('customer', ['password' => 'old-password']);
+
+        $this->actingAs($user, 'api')
+            ->putJson('/api/auth/change-password', [
+                'current_password' => 'old-password',
+                'password' => 'new-password',
+                'password_confirmation' => 'new-password',
+            ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Password changed successfully.');
+
+        $this->assertTrue(Hash::check('new-password', $user->fresh()->password));
+    }
+
+    public function test_password_change_rejects_an_incorrect_current_password(): void
+    {
+        $user = $this->makeUser('customer', ['password' => 'old-password']);
+
+        $this->actingAs($user, 'api')
+            ->putJson('/api/auth/change-password', [
+                'current_password' => 'wrong-password',
+                'password' => 'new-password',
+                'password_confirmation' => 'new-password',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('current_password');
+
+        $this->assertTrue(Hash::check('old-password', $user->fresh()->password));
     }
 
     public function test_kvk_lookup_rejects_an_invalid_number(): void

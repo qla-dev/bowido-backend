@@ -155,7 +155,7 @@ class PalletService extends BaseCrudService
             $notes = implode("\n", array_slice(array_filter([
                 $serviceNote,
                 ...$existingNotes,
-            ], static fn (string $note): bool => trim($note) !== ''), 0, 2));
+            ], static fn (string $note): bool => trim($note) !== ''), 0, 1));
 
             /** @var Pallet $updatedPallet */
             $updatedPallet = $this->palletRepository->update($lockedPallet, [

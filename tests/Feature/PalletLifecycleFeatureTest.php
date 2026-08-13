@@ -224,7 +224,7 @@ class PalletLifecycleFeatureTest extends TestCase
             ->assertJsonPath('data.current_location', 'Nikole Tesle 71, 74000 Doboj');
     }
 
-    public function test_repair_status_keeps_only_the_two_most_recent_notes(): void
+    public function test_repair_status_keeps_only_the_most_recent_note(): void
     {
         $admin = $this->makeUser('admin', ['name' => 'Bowido Admin']);
         $pallet = Pallet::factory()->create([
@@ -235,10 +235,10 @@ class PalletLifecycleFeatureTest extends TestCase
         $this->actingAs($admin, 'api')
             ->putJson('/api/pallets/'.$pallet->id.'/repair-status', ['is_for_repair' => true])
             ->assertOk()
-            ->assertJsonPath('data.notes', "Bowido Admin admitted pallet to service.\nPrevious repair note");
+            ->assertJsonPath('data.notes', 'Bowido Admin admitted pallet to service.');
 
         $this->assertSame(
-            "Bowido Admin admitted pallet to service.\nPrevious repair note",
+            'Bowido Admin admitted pallet to service.',
             $pallet->fresh()->notes,
         );
     }
