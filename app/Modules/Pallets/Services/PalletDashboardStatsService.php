@@ -23,7 +23,12 @@ class PalletDashboardStatsService
         $baseQuery = $this->baseQuery($actor);
 
         return [
-            'total_pallets' => (clone $baseQuery)->count(),
+            // Pallets reported without a QR code are tracked separately and
+            // must not inflate the dashboard's total pallet count.
+            'total_pallets' => (clone $baseQuery)
+                ->whereNotNull('qr_code')
+                ->where('qr_code', '!=', '')
+                ->count(),
             'in_transport' => (clone $baseQuery)
                 ->whereHas('currentStatus', function (Builder $query): void {
                     $query->whereIn('slug', self::TRANSPORT_STATUS_SLUGS);

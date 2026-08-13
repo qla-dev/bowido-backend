@@ -36,6 +36,7 @@ Route::prefix('auth')->group(function (): void {
     Route::middleware('auth:web,api')->group(function (): void {
         Route::post('register', [AuthController::class, 'register']);
         Route::get('me', [AuthController::class, 'me']);
+        Route::put('change-password', [AuthController::class, 'changePassword']);
         Route::post('logout', [AuthController::class, 'logout']);
     });
 });

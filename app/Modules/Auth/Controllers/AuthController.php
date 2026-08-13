@@ -7,6 +7,7 @@ use App\Modules\Auth\DTOs\RegisterData;
 use App\Modules\Auth\Exceptions\KvkLookupException;
 use App\Modules\Auth\Requests\KvkLookupRequest;
 use App\Modules\Auth\Requests\LoginRequest;
+use App\Modules\Auth\Requests\ChangePasswordRequest;
 use App\Modules\Auth\Requests\RegisterRequest;
 use App\Modules\Auth\Services\AuthService;
 use App\Modules\Auth\Services\KvkCompanyLookupService;
@@ -253,6 +254,23 @@ class AuthController extends ApiController
             (new UserResource($request->user()))->resolve(),
             __('Authenticated user retrieved successfully.'),
         );
+    }
+
+    public function changePassword(ChangePasswordRequest $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $data = $request->validated();
+
+        if (! Hash::check($data['current_password'], $user->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => [__('The current password is incorrect.')],
+            ]);
+        }
+
+        $user->update(['password' => Hash::make($data['password'])]);
+
+        return $this->success(null, __('Password changed successfully.'));
     }
 
     public function logout(Request $request): JsonResponse
