@@ -217,6 +217,53 @@ class AuthFeatureTest extends TestCase
         ]);
     }
 
+    public function test_kvk_registration_creates_a_customer_when_the_company_is_not_imported_locally(): void
+    {
+        Http::fake(['api.test.kvk/*' => Http::response([
+            'kvkNummer' => '82860734',
+            'naam' => 'BoWiDo B.V.',
+        ], 200)]);
+
+        $this->postJson('/api/auth/kvk-register', [
+            'kvk' => '82860734',
+            'name' => 'BoWiDo B.V.',
+            'email' => 'new-kvk-customer@example.com',
+            'phone_number' => '+31612345678',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('customer_details', [
+            'kvk' => '82860734',
+            'company_name' => 'BoWiDo B.V.',
+            'billing_email' => 'new-kvk-customer@example.com',
+            'is_active' => true,
+        ]);
+        $this->assertDatabaseHas('users', [
+            'name' => 'BoWiDo B.V.',
+            'email' => 'new-kvk-customer@example.com',
+            'phone_number' => '+31612345678',
+            'is_active' => true,
+        ]);
+        Http::assertSent(fn ($request) => $request->hasHeader('apikey', 'test-kvk-key'));
+    }
+
+    public function test_kvk_registration_returns_the_lookup_error_when_a_new_customer_cannot_be_verified(): void
+    {
+        Http::fake(['api.test.kvk/*' => Http::response([], 503)]);
+
+        $this->postJson('/api/auth/kvk-register', [
+            'kvk' => '82860734',
+            'name' => 'BoWiDo B.V.',
+            'email' => 'new-kvk-customer@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])->assertStatus(503)
+            ->assertJsonPath('data', null);
+
+        $this->assertDatabaseMissing('customer_details', ['kvk' => '82860734']);
+    }
+
     public function test_kvk_lookup_uses_the_first_main_branch_address_when_no_visit_address_exists(): void
     {
         Http::fake(['api.test.kvk/*' => Http::response([

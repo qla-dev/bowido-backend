@@ -15,7 +15,7 @@ class PalletPhotoFeatureTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_gallery_shows_all_image_types_for_pallets_at_the_customer_or_ready_for_pickup(): void
+    public function test_gallery_shows_non_damage_photos_for_pallets_at_the_customer_or_ready_for_pickup(): void
     {
         $admin = $this->makeUser('admin');
         $customerA = $this->makeUser('customer');
@@ -43,7 +43,7 @@ class PalletPhotoFeatureTest extends TestCase
             'new_status_id' => $warehouseStatus->id,
             'client_id' => null,
             'uploaded_by_user_id' => $admin->id,
-            'type' => 'delivery_photo',
+            'type' => 'scan',
             'mime_type' => 'image/webp',
             'size_bytes' => 5,
             'expires_at' => now()->addHour(),
@@ -65,7 +65,7 @@ class PalletPhotoFeatureTest extends TestCase
             'new_status_id' => $pickupStatus->id,
             'client_id' => $customerA->id,
             'uploaded_by_user_id' => $admin->id,
-            'type' => 'scan',
+            'type' => 'delivery_photo',
             'mime_type' => 'image/webp',
             'size_bytes' => 5,
             'expires_at' => now()->addHour(),
@@ -82,6 +82,29 @@ class PalletPhotoFeatureTest extends TestCase
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $photoB->id)
             ->assertJsonPath('data.0.status.id', $customerStatus->id);
+    }
+
+    public function test_gallery_does_not_show_damage_report_photos(): void
+    {
+        $admin = $this->makeUser('admin');
+        $customer = $this->makeUser('customer');
+        $status = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $pallet = Pallet::factory()->create(['user_id' => $customer->id, 'current_status_id' => $status->id]);
+
+        PalletPhoto::query()->create([
+            'pallet_id' => $pallet->id, 'uploaded_by_user_id' => $admin->id, 'type' => 'damage_report',
+            'mime_type' => 'image/webp', 'size_bytes' => 5, 'expires_at' => now()->addHour(),
+        ]);
+        $deliveryPhoto = PalletPhoto::query()->create([
+            'pallet_id' => $pallet->id, 'uploaded_by_user_id' => $admin->id, 'type' => 'delivery_photo',
+            'delivery_started_at' => now(), 'mime_type' => 'image/webp', 'size_bytes' => 5, 'expires_at' => now()->addHour(),
+        ]);
+
+        $this->actingAs($admin, 'api')
+            ->getJson('/api/gallery')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $deliveryPhoto->id);
     }
 
     public function test_scan_photo_is_stored_in_the_database_without_an_audit_log(): void
@@ -287,6 +310,7 @@ class PalletPhotoFeatureTest extends TestCase
     public function test_delivery_photo_is_reencoded_to_webp_in_the_database_and_can_be_opened_from_the_gallery(): void
     {
         $admin = $this->makeUser('admin');
+        $warehouse = $this->makeUser('warehouse_operator');
         $customer = $this->makeUser('customer');
         $status = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
         $pallet = Pallet::factory()->create([
@@ -311,6 +335,7 @@ class PalletPhotoFeatureTest extends TestCase
         $this->assertSame('delivery_photo', $photo->type->value);
         $this->assertNull($photo->disk);
         $this->assertNull($photo->path);
+        $this->assertSame('warehouse_nl', $photo->warehouse_scope);
         $this->assertNotEmpty($photo->content);
         $this->assertLessThanOrEqual(120 * 1024, $photo->size_bytes);
         $encodedPhoto = $photo->content;
@@ -325,6 +350,66 @@ class PalletPhotoFeatureTest extends TestCase
             ->get($signedPath)
             ->assertOk()
             ->assertHeader('content-type', 'image/webp');
+
+        $this->actingAs($warehouse, 'api')
+            ->getJson('/api/gallery')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $photo->id);
+    }
+
+    public function test_delivery_photos_within_24_hours_share_a_delivery_start_time(): void
+    {
+        $admin = $this->makeUser('admin');
+        $customer = $this->makeUser('customer');
+        $status = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $pallet = Pallet::factory()->create(['user_id' => $customer->id, 'current_status_id' => $status->id]);
+        $deliveryStart = now()->subHours(2)->startOfSecond();
+
+        PalletPhoto::query()->create([
+            'pallet_id' => $pallet->id,
+            'uploaded_by_user_id' => $admin->id,
+            'type' => 'delivery_photo',
+            'delivery_started_at' => $deliveryStart,
+            'mime_type' => 'image/webp',
+            'size_bytes' => 5,
+            'expires_at' => now()->addHour(),
+        ]);
+
+        $this->actingAs($admin, 'api')
+            ->post("/api/pallets/{$pallet->id}/delivery-photo", ['photo' => UploadedFile::fake()->image('second-delivery.jpg')])
+            ->assertCreated();
+
+        $secondPhoto = PalletPhoto::query()->latest('id')->firstOrFail();
+
+        $this->assertTrue($secondPhoto->delivery_started_at->equalTo($deliveryStart));
+    }
+
+    public function test_delivery_photo_after_24_hours_starts_a_new_delivery_window(): void
+    {
+        $admin = $this->makeUser('admin');
+        $customer = $this->makeUser('customer');
+        $status = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $pallet = Pallet::factory()->create(['user_id' => $customer->id, 'current_status_id' => $status->id]);
+        $oldDeliveryStart = now()->subDays(2)->startOfSecond();
+
+        PalletPhoto::query()->create([
+            'pallet_id' => $pallet->id,
+            'uploaded_by_user_id' => $admin->id,
+            'type' => 'delivery_photo',
+            'delivery_started_at' => $oldDeliveryStart,
+            'mime_type' => 'image/webp',
+            'size_bytes' => 5,
+            'expires_at' => now()->addHour(),
+        ]);
+
+        $this->actingAs($admin, 'api')
+            ->post("/api/pallets/{$pallet->id}/delivery-photo", ['photo' => UploadedFile::fake()->image('new-delivery.jpg')])
+            ->assertCreated();
+
+        $newPhoto = PalletPhoto::query()->latest('id')->firstOrFail();
+
+        $this->assertTrue($newPhoto->delivery_started_at->isAfter($oldDeliveryStart->addHours(24)));
     }
 
     public function test_delivery_photo_can_only_be_saved_for_a_pallet_at_the_customer_or_ready_for_pickup(): void

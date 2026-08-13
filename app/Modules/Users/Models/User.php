@@ -32,6 +32,7 @@ class User extends Authenticatable
         'email',
         'phone_number',
         'password',
+        'first_time_login',
         'is_active',
         'email_verified_at',
         'last_login_at',
@@ -48,6 +49,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'last_login_at' => 'datetime',
             'password' => 'hashed',
+            'first_time_login' => 'boolean',
             'is_active' => 'boolean',
         ];
     }

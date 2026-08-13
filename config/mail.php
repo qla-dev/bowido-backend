@@ -16,8 +16,9 @@ return [
 
     'default' => env('MAIL_MAILER', 'log'),
 
-    // Keep customer email addresses in the database while safely redirecting all outgoing mail in test environments.
+    // Keep customer email addresses in the database while safely redirecting every outgoing email in test environments.
     'force_to_colakovic' => env('MAIL_FORCE_TO_COLAKOVIC', false),
+    'force_to_address' => 'colakovic.vedad@qla.dev',
 
     /*
     |--------------------------------------------------------------------------

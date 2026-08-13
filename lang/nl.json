@@ -10,6 +10,7 @@
     "Logout successful.": "Uitloggen is geslaagd.",
     "Invalid credentials.": "Ongeldige inloggegevens.",
     "Email or password are incorrect.": "E-mail of wachtwoord is onjuist.",
+    "If an active account matches this email address, a new temporary password has been sent.": "Als een actief account overeenkomt met dit e-mailadres, is er een nieuw tijdelijk wachtwoord verstuurd.",
     "Selected role is invalid or inactive.": "De geselecteerde rol is ongeldig of inactief.",
     "Users retrieved successfully.": "Gebruikers succesvol opgehaald.",
     "User created successfully.": "Gebruiker succesvol aangemaakt.",
@@ -98,5 +99,12 @@
     "Kind regards,": "Met vriendelijke groet,",
     "The selected user must be a customer.": "De geselecteerde gebruiker moet een klant zijn.",
     ":actor admitted pallet to service.": ":actor heeft de bok aangemeld voor service.",
-    ":actor removed pallet from service.": ":actor heeft de bok uit service verwijderd."
+    ":actor removed pallet from service.": ":actor heeft de bok uit service verwijderd.",
+    "Login details could not be sent.": "De inloggegevens konden niet worden verstuurd.",
+    "The user was created, but the login details email could not be sent. Use Send login details to try again.": "De gebruiker is aangemaakt, maar de e-mail met inloggegevens kon niet worden verstuurd. Gebruik Inloggegevens versturen om het opnieuw te proberen.",
+    "User created, but login details could not be sent.": "De gebruiker is aangemaakt, maar de inloggegevens konden niet worden verstuurd.",
+    "Login details sent successfully.": "De inloggegevens zijn succesvol verstuurd.",
+    "Some login details could not be sent.": "Niet alle inloggegevens konden worden verstuurd.",
+    "First-time login has already been completed.": "De eerste aanmelding is al voltooid.",
+    "Assigned password retained successfully.": "Het toegewezen wachtwoord is behouden."
 }

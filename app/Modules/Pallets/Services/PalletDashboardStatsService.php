@@ -54,7 +54,7 @@ class PalletDashboardStatsService
         $clients = [];
 
         $this->baseQuery($actor)
-            ->select(['id', 'user_id', 'current_status_id', 'last_status_changed_at'])
+            ->select(['id', 'user_id', 'current_status_id', 'last_status_changed_at', 'customer_timer_started_at', 'customer_timer_frozen_at'])
             ->whereNotNull('last_status_changed_at')
             ->with([
                 'currentStatus:id,is_billable,grace_period_days,price_per_day',
@@ -69,9 +69,10 @@ class PalletDashboardStatsService
 
                     $status = $pallet->currentStatus;
                     $customer = $pallet->user?->customerDetail;
-                    $changedAt = $pallet->last_status_changed_at->copy()->startOfDay();
+                    $changedAt = ($pallet->customer_timer_started_at ?? $pallet->last_status_changed_at)->copy()->startOfDay();
+                    $counterEnd = ($pallet->customer_timer_frozen_at ?? $today)->copy()->startOfDay();
                     $graceDays = $customer?->grace_period_days ?? $status->grace_period_days ?? 0;
-                    $overdueDays = (int) $changedAt->diffInDays($today) - $graceDays;
+                    $overdueDays = (int) $changedAt->diffInDays($counterEnd) - $graceDays;
                     $debt = $overdueDays * (float) ($customer?->default_price_per_day ?? $status->price_per_day ?? 0);
 
                     if ($debt <= 0) {
@@ -112,7 +113,7 @@ class PalletDashboardStatsService
         $overdueUnits = 0;
 
         $this->baseQuery($actor)
-            ->select(['id', 'user_id', 'current_status_id', 'last_status_changed_at'])
+            ->select(['id', 'user_id', 'current_status_id', 'last_status_changed_at', 'customer_timer_started_at', 'customer_timer_frozen_at'])
             ->with([
                 'currentStatus:id,slug,is_billable,grace_period_days',
                 'user:id',
@@ -138,14 +139,15 @@ class PalletDashboardStatsService
             return false;
         }
 
-        $changedAt = $pallet->last_status_changed_at->copy()->startOfDay();
+        $changedAt = ($pallet->customer_timer_started_at ?? $pallet->last_status_changed_at)->copy()->startOfDay();
 
         if ($changedAt->greaterThan($today)) {
             return false;
         }
 
         $graceDays = $pallet->user?->customerDetail?->grace_period_days ?? $status->grace_period_days ?? 0;
-        $daysSinceChange = (int) $changedAt->diffInDays($today);
+        $counterEnd = ($pallet->customer_timer_frozen_at ?? $today)->copy()->startOfDay();
+        $daysSinceChange = (int) $changedAt->diffInDays($counterEnd);
 
         return $daysSinceChange > $graceDays;
     }

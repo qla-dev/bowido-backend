@@ -162,8 +162,9 @@ class PalletRepository extends BaseRepository
         $statusSlug = '(SELECT statuses.slug FROM statuses WHERE statuses.id = pallets.current_status_id LIMIT 1)';
         $clientGraceDays = '(SELECT customer_details.grace_period_days FROM customer_details WHERE customer_details.user_id = pallets.user_id LIMIT 1)';
         $graceDays = "CASE WHEN COALESCE({$statusSlug}, '') IN ('bih-nl-transport', 'nl-bih-transport', 'transport', 'transport_bih_nl', 'transport_nl_bih') THEN COALESCE(pallets.grace_days, {$statusGraceDays}, 3) WHEN COALESCE({$statusIsBillable}, 0) = 1 THEN COALESCE(pallets.grace_days, {$clientGraceDays}, {$statusGraceDays}, 0) ELSE 0 END";
-        $hasDueDate = "pallets.last_status_changed_at IS NOT NULL AND ({$graceDays}) > 0";
-        $dueDate = "TIMESTAMPADD(DAY, ({$graceDays}), DATE(pallets.last_status_changed_at))";
+        $timerStartedAt = "CASE WHEN COALESCE({$statusSlug}, '') IN ('bij-de-klant', 'ophalen-klant') THEN COALESCE(pallets.customer_timer_started_at, pallets.last_status_changed_at) ELSE pallets.last_status_changed_at END";
+        $hasDueDate = "{$timerStartedAt} IS NOT NULL AND ({$graceDays}) > 0";
+        $dueDate = "TIMESTAMPADD(DAY, ({$graceDays}), DATE({$timerStartedAt}))";
 
         return $query
             ->orderByRaw("CASE WHEN {$hasDueDate} THEN 0 ELSE 1 END ASC")

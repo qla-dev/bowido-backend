@@ -20,6 +20,7 @@ class PalletPhoto extends Model
         'service_report_id',
         'uploaded_by_user_id',
         'type',
+        'delivery_started_at',
         'warehouse_scope',
         'disk',
         'path',
@@ -36,6 +37,7 @@ class PalletPhoto extends Model
     {
         return [
             'type' => PalletPhotoType::class,
+            'delivery_started_at' => 'datetime',
             'size_bytes' => 'integer',
             'width' => 'integer',
             'height' => 'integer',

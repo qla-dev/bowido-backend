@@ -12,6 +12,7 @@ use App\Modules\Shared\Services\AuditTrailService;
 use App\Modules\Shared\Services\BaseCrudService;
 use App\Modules\Shared\Services\TrackableAssetService;
 use App\Modules\Statuses\Repositories\StatusRepository;
+use App\Modules\Statuses\Models\Status;
 use App\Modules\Users\Models\User;
 use App\Modules\Users\Repositories\UserRepository;
 use Carbon\CarbonInterface;
@@ -40,8 +41,10 @@ class PalletService extends BaseCrudService
         return DB::transaction(function () use ($data): Pallet {
             $attributes = $data->toArray();
             $attributes['user_id'] = $this->normalizedCustomerId($data);
-            $attributes['last_status_changed_at'] = now();
+            $changedAt = now();
+            $attributes['last_status_changed_at'] = $changedAt;
             $status = $this->statusRepository->findOrFail($data->currentStatusId);
+            $attributes = [...$attributes, ...$this->customerTimerAttributes(new Pallet, $status, $changedAt)];
 
             if (in_array($status->slug, ['bih-nl-transport', 'nl-bih-transport'], true)) {
                 $attributes['current_location'] = 'Na putu';
@@ -98,7 +101,9 @@ class PalletService extends BaseCrudService
             $overdueInvoiceData = $this->overdueInvoiceData($lockedPallet, $data->currentStatusId);
 
             if ((int) $originalAttributes['current_status_id'] !== $data->currentStatusId) {
-                $attributes['last_status_changed_at'] = now();
+                $changedAt = now();
+                $attributes['last_status_changed_at'] = $changedAt;
+                $attributes = [...$attributes, ...$this->customerTimerAttributes($lockedPallet, $nextStatus, $changedAt)];
             }
 
             /** @var Pallet $updatedPallet */
@@ -191,17 +196,19 @@ class PalletService extends BaseCrudService
 
         $overdueInvoiceData = null;
 
-        $updatedPallet = DB::transaction(function () use ($pallet, $statusId, $actor, &$overdueInvoiceData): Pallet {
+        $updatedPallet = DB::transaction(function () use ($pallet, $statusId, $nextStatus, $actor, &$overdueInvoiceData): Pallet {
             $lockedPallet = $this->palletRepository->lockForUpdate($pallet->id);
             $lockedPallet->loadMissing(['user.customerDetail', 'currentStatus']);
             $originalAttributes = $lockedPallet->only(['user_id', 'current_status_id', 'current_location', 'qr_code']);
             $overdueInvoiceData = $this->overdueInvoiceData($lockedPallet, $statusId);
+            $changedAt = now();
             $attributes = [
                 'user_id' => $lockedPallet->user_id,
                 'current_status_id' => $statusId,
                 'current_location' => $lockedPallet->current_location,
-                'last_status_changed_at' => now(),
+                'last_status_changed_at' => $changedAt,
             ];
+            $attributes = [...$attributes, ...$this->customerTimerAttributes($lockedPallet, $nextStatus, $changedAt)];
 
             /** @var Pallet $updatedPallet */
             $updatedPallet = $this->palletRepository->update($lockedPallet, $attributes);
@@ -237,11 +244,13 @@ class PalletService extends BaseCrudService
 
         return DB::transaction(function () use ($pallet, $customer, $status, $location): Pallet {
             $lockedPallet = $this->palletRepository->lockForUpdate($pallet->id);
+            $changedAt = now();
             $lockedPallet->update([
                 'user_id' => $customer->id,
                 'current_status_id' => $status->id,
                 'current_location' => trim($location),
-                'last_status_changed_at' => now(),
+                'last_status_changed_at' => $changedAt,
+                ...$this->customerTimerAttributes($lockedPallet, $status, $changedAt),
             ]);
 
             Log::info('Customer claimed pallet possession.', [
@@ -349,6 +358,35 @@ class PalletService extends BaseCrudService
         $structuredAddress = implode(', ', array_filter([$streetLine, $localityLine]));
 
         return $structuredAddress !== '' ? $structuredAddress : $location->formatted_address;
+    }
+
+    /**
+     * The return and deadline counters measure one customer possession period.
+     * Once a customer requests pickup, preserve both its start and finish so
+     * later reads cannot keep increasing the counter from the new status date.
+     *
+     * @return array<string, CarbonInterface|null>
+     */
+    private function customerTimerAttributes(Pallet $pallet, Status $nextStatus, CarbonInterface $changedAt): array
+    {
+        $currentSlug = $pallet->currentStatus?->slug;
+
+        if ($nextStatus->slug === 'bij-de-klant' && $currentSlug !== 'bij-de-klant') {
+            return [
+                'customer_timer_started_at' => $changedAt,
+                'customer_timer_frozen_at' => null,
+            ];
+        }
+
+        if ($currentSlug === 'bij-de-klant' && $nextStatus->slug === 'ophalen-klant') {
+            return [
+                // Legacy pallets did not yet have a dedicated start time.
+                'customer_timer_started_at' => $pallet->customer_timer_started_at ?? $pallet->last_status_changed_at ?? $changedAt,
+                'customer_timer_frozen_at' => $changedAt,
+            ];
+        }
+
+        return [];
     }
 
     /**

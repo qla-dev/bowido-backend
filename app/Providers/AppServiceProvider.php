@@ -6,6 +6,7 @@ use App\Modules\Locations\Contracts\LocationProviderInterface;
 use App\Modules\Locations\Providers\GeoapifyLocationProvider;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
@@ -34,6 +35,13 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Schema::defaultStringLength(191);
+
+        // This is deliberately configured at the mailer level, not per email
+        // service, so test mode cannot accidentally deliver any message to a
+        // real customer.
+        if (config('mail.force_to_colakovic')) {
+            Mail::alwaysTo((string) config('mail.force_to_address'));
+        }
 
         RateLimiter::for('reverse-geocoding', function (Request $request): Limit {
             $key = $request->user()

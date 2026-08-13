@@ -10,6 +10,7 @@
     "Logout successful.": "Logout successful.",
     "Invalid credentials.": "Invalid credentials.",
     "Email or password are incorrect.": "Email or password are incorrect.",
+    "If an active account matches this email address, a new temporary password has been sent.": "If an active account matches this email address, a new temporary password has been sent.",
     "Selected role is invalid or inactive.": "Selected role is invalid or inactive.",
     "Users retrieved successfully.": "Users retrieved successfully.",
     "User created successfully.": "User created successfully.",
