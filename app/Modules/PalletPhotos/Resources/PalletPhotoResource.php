@@ -20,6 +20,7 @@ class PalletPhotoResource extends JsonResource
             'service_report_id' => $this->service_report_id,
             'uploaded_by_user_id' => $this->uploaded_by_user_id,
             'type' => $this->type?->value,
+            'delivery_started_at' => $this->delivery_started_at,
             'warehouse_scope' => $this->warehouse_scope,
             'original_name' => $this->original_name,
             'mime_type' => $this->mime_type,

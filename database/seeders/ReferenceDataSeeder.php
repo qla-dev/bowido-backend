@@ -149,6 +149,13 @@ class ReferenceDataSeeder extends Seeder
                     'can_delete' => $permission['can_delete'],
                 ];
 
+                if (
+                    $roleName === 'warehouse_operator'
+                    && $permission['module_id'] === $modules->get(ModuleKey::ImageGallery->value)?->id
+                ) {
+                    $attributes['scope'] = 'warehouse_nl';
+                }
+
                 if ($roleName === 'admin') {
                     RolePermission::query()->updateOrCreate(
                         ['role_id' => $role->id, 'module_id' => $permission['module_id']],
@@ -189,6 +196,7 @@ class ReferenceDataSeeder extends Seeder
                 ModuleKey::GhostPalletReports->value => ['can_list', 'can_view', 'can_create', 'can_update'],
                 ModuleKey::Invoices->value => ['can_list', 'can_view'],
                 ModuleKey::InvoiceItems->value => ['can_list', 'can_view'],
+                ModuleKey::ImageGallery->value => ['can_list', 'can_view'],
             ],
             'operator' => [
                 ModuleKey::Pallets->value => ['can_list', 'can_view', 'can_create', 'can_update'],

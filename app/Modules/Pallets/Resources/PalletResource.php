@@ -41,6 +41,8 @@ class PalletResource extends JsonResource
             'notes' => $this->notes,
             'note' => $this->notes,
             'last_status_changed_at' => $this->last_status_changed_at,
+            'customer_timer_started_at' => $this->customer_timer_started_at,
+            'customer_timer_frozen_at' => $this->customer_timer_frozen_at,
             'days_at_customer' => $this->days_at_customer,
             'grace_days' => $this->grace_days,
             'overdue_days' => $this->overdue_days,

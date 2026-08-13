@@ -8,12 +8,45 @@ use App\Modules\DeliveryLocations\Models\DeliveryLocation;
 use App\Modules\Pallets\Models\Pallet;
 use App\Modules\Shared\Enums\AuditEventType;
 use App\Modules\Statuses\Models\Status;
+use Illuminate\Support\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class PalletLifecycleFeatureTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_customer_pickup_freezes_the_return_and_deadline_timer(): void
+    {
+        $customer = $this->makeUser('customer');
+        $atCustomer = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $pickup = Status::query()->where('slug', 'ophalen-klant')->firstOrFail();
+        $startedAt = Carbon::parse('2026-08-01 09:00:00');
+        $frozenAt = Carbon::parse('2026-08-06 14:30:00');
+        $pallet = Pallet::factory()->create([
+            'user_id' => $customer->id,
+            'current_status_id' => $atCustomer->id,
+            'last_status_changed_at' => $startedAt,
+        ]);
+
+        Carbon::setTestNow($frozenAt);
+
+        try {
+            $this->actingAs($customer, 'api')
+                ->putJson('/api/pallets/'.$pallet->id.'/client-status', [
+                    'current_status_id' => $pickup->id,
+                ])
+                ->assertOk()
+                ->assertJsonPath('data.current_status_id', $pickup->id);
+
+            $pallet->refresh();
+
+            $this->assertTrue($pallet->customer_timer_started_at->equalTo($startedAt));
+            $this->assertTrue($pallet->customer_timer_frozen_at->equalTo($frozenAt));
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
 
     public function test_current_location_update_persists_the_location_chosen_in_the_client_list(): void
     {

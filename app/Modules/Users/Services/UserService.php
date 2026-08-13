@@ -9,6 +9,7 @@ use App\Modules\Shared\Services\BaseCrudService;
 use App\Modules\Users\DTOs\UserData;
 use App\Modules\Users\Models\User;
 use App\Modules\Users\Repositories\UserRepository;
+use App\Modules\Users\Support\TemporaryPasswordGenerator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use LogicException;
@@ -19,6 +20,7 @@ class UserService extends BaseCrudService
     public function __construct(
         private readonly UserRepository $userRepository,
         private readonly CustomerDetailRepository $customerDetailRepository,
+        private readonly TemporaryPasswordGenerator $passwordGenerator,
     ) {
         parent::__construct($userRepository);
     }
@@ -52,6 +54,58 @@ class UserService extends BaseCrudService
                     'exception_message' => $exception->getMessage(),
                     'previous_exception_class' => $exception->getPrevious() ? $exception->getPrevious()::class : null,
                     'previous_exception_message' => $exception->getPrevious()?->getMessage(),
+                    'exception' => $exception,
+                ]);
+            }
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * @return array{user: User, temporary_password: string}
+     */
+    public function createWithTemporaryPassword(UserData $data): array
+    {
+        $temporaryPassword = $this->passwordGenerator->generate();
+        $user = $this->createWithAttributes($data, [
+            'password' => $temporaryPassword,
+            'first_time_login' => true,
+        ]);
+
+        return ['user' => $user, 'temporary_password' => $temporaryPassword];
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
+    private function createWithAttributes(UserData $data, array $overrides): User
+    {
+        try {
+            return DB::transaction(function () use ($data, $overrides): User {
+                /** @var User $user */
+                $user = $this->userRepository->create([
+                    ...$data->toArray(),
+                    ...$overrides,
+                ]);
+
+                $customerDetail = $this->syncCustomerDetails($user, $data);
+
+                if ($customerDetail !== null && (int) $customerDetail->user_id !== (int) $user->id) {
+                    throw new LogicException('Created client details are not linked to the new user.');
+                }
+
+                return $user->refresh()->load(['role.rolePermissions.module', 'customerDetail']);
+            });
+        } catch (Throwable $exception) {
+            if (is_array($data->customerDetails)) {
+                Log::error('Client creation failed.', [
+                    'company_name' => $data->customerDetails['company_name'] ?? null,
+                    'kvk' => $data->customerDetails['kvk'] ?? null,
+                    'email' => $data->email,
+                    'role_id' => $data->roleId,
+                    'exception_class' => $exception::class,
+                    'exception_message' => $exception->getMessage(),
                     'exception' => $exception,
                 ]);
             }

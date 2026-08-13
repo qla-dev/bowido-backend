@@ -8,12 +8,12 @@ use App\Modules\DeliveryLocations\Controllers\DeliveryLocationController;
 use App\Modules\GhostPalletReports\Controllers\GhostPalletReportController;
 use App\Modules\InvoiceItems\Controllers\InvoiceItemController;
 use App\Modules\Invoices\Controllers\InvoiceController;
-use App\Modules\Locations\Controllers\ReverseGeocodingController;
 use App\Modules\Locations\Controllers\AddressSearchController;
+use App\Modules\Locations\Controllers\ReverseGeocodingController;
 use App\Modules\Modules\Controllers\ModuleController;
+use App\Modules\PalletPhotos\Controllers\DeliveryPhotoController;
 use App\Modules\PalletPhotos\Controllers\GalleryController;
 use App\Modules\PalletPhotos\Controllers\PalletPhotoController;
-use App\Modules\PalletPhotos\Controllers\DeliveryPhotoController;
 use App\Modules\Pallets\Controllers\PalletController;
 use App\Modules\Pallets\Controllers\PalletStatsController;
 use App\Modules\RolePermissions\Controllers\RolePermissionController;
@@ -30,6 +30,8 @@ Route::get('health', fn () => response()->json([
 Route::prefix('auth')->group(function (): void {
     Route::get('login-options', [AuthController::class, 'loginOptions']);
     Route::post('login', [AuthController::class, 'login']);
+    Route::post('forgot-password', [AuthController::class, 'forgotPassword'])
+        ->middleware('throttle:5,1');
     Route::post('kvk-lookup', [AuthController::class, 'kvkLookup']);
     Route::post('kvk-register', [AuthController::class, 'registerByKvk']);
 
@@ -37,6 +39,8 @@ Route::prefix('auth')->group(function (): void {
         Route::post('register', [AuthController::class, 'register']);
         Route::get('me', [AuthController::class, 'me']);
         Route::put('change-password', [AuthController::class, 'changePassword']);
+        Route::put('first-login/password', [AuthController::class, 'completeFirstLoginWithPassword']);
+        Route::post('first-login/keep-password', [AuthController::class, 'keepFirstLoginPassword']);
         Route::post('logout', [AuthController::class, 'logout']);
     });
 });
@@ -53,6 +57,7 @@ Route::middleware('auth:web,api')->group(function (): void {
     Route::get('customer-details/me', [CustomerDetailController::class, 'me']);
     Route::put('customer-details/me', [CustomerDetailController::class, 'upsertMe']);
     Route::apiResource('roles', RoleController::class);
+    Route::post('users/send-login-details', [UserController::class, 'sendLoginDetails']);
     Route::apiResource('users', UserController::class);
     Route::apiResource('customer_details', CustomerDetailController::class)
         ->parameters(['customer_details' => 'customerDetail']);

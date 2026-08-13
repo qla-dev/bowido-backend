@@ -122,6 +122,7 @@ class MockDataSeeder extends Seeder
                         'name' => $user['name'],
                         'phone_number' => $user['phone_number'],
                         'password' => $user['password'],
+                        'first_time_login' => false,
                         'is_active' => true,
                     ],
                 ),

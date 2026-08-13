@@ -148,6 +148,10 @@ class PalletPhotoService
             'uploadedByUser.role',
             'serviceReport',
         ])
+            // Older delivery images were saved as scan/status photos. Keep
+            // those visible, but never mix damage-report evidence into the
+            // Delivery Information gallery.
+            ->where('type', '!=', PalletPhotoType::DamageReport)
             ->whereHas('pallet.currentStatus', fn (Builder $statusQuery) => $statusQuery->whereIn('slug', ['bij-de-klant', 'ophalen-klant']));
 
         if (! $actor->isAdmin()) {
