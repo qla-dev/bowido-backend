@@ -137,7 +137,7 @@ class PalletLifecycleFeatureTest extends TestCase
         }
     }
 
-    public function test_customer_pickup_keeps_the_selected_client_and_status(): void
+    public function test_customer_status_change_keeps_an_unselected_location_empty(): void
     {
         $admin = $this->makeUser('admin');
         $customer = $this->makeUser('customer');
@@ -160,11 +160,11 @@ class PalletLifecycleFeatureTest extends TestCase
         $this->actingAs($admin, 'api')->putJson('/api/pallets/'.$pallet->id, [
             'user_id' => $customer->id,
             'current_status_id' => $pickup->id,
-            'current_location' => 'Ignored frontend location',
+            'current_location' => '',
         ])->assertOk()
             ->assertJsonPath('data.current_status_slug', 'ophalen-klant')
             ->assertJsonPath('data.user_id', $customer->id)
-            ->assertJsonPath('data.current_location', 'Pickupstraat 9, 1000 AA Amsterdam');
+            ->assertJsonPath('data.current_location', null);
     }
 
     public function test_admin_can_change_or_clear_a_pallet_client_assignment(): void
@@ -315,7 +315,7 @@ class PalletLifecycleFeatureTest extends TestCase
             'asset_type' => 'pallet',
             'qr_code' => 'pal-0002',
             'reference_code' => 'RF-22',
-            'current_location' => 'Ignored frontend location',
+            'current_location' => '',
             'notes' => 'Delivered to customer',
             'is_active' => true,
             'is_ghost' => false,
@@ -327,7 +327,7 @@ class PalletLifecycleFeatureTest extends TestCase
             ->assertJsonPath('data.user_id', $customerB->id)
             ->assertJsonPath('data.current_status_id', $atCustomer->id)
             ->assertJsonPath('data.qr_code', 'PAL-0002')
-            ->assertJsonPath('data.current_location', 'Industrieweg 10, 1234 AB Utrecht');
+            ->assertJsonPath('data.current_location', null);
 
         $auditLogs = AuditLog::query()
             ->where('pallet_id', $pallet->id)
@@ -344,7 +344,7 @@ class PalletLifecycleFeatureTest extends TestCase
         $this->assertSame($transport->id, $statusLog->old_status_id);
         $this->assertSame($atCustomer->id, $statusLog->new_status_id);
         $this->assertSame('Na putu', $statusLog->old_location);
-        $this->assertSame('Industrieweg 10, 1234 AB Utrecht', $statusLog->new_location);
+        $this->assertNull($statusLog->new_location);
 
         $qrLog = $auditLogs->get(AuditEventType::QrCodeChanged->value);
         $this->assertNotNull($qrLog);

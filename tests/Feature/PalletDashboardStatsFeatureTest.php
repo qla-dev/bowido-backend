@@ -162,7 +162,7 @@ class PalletDashboardStatsFeatureTest extends TestCase
             ->assertJsonPath('data.top_overdue_clients.1.debt_eur', 4);
     }
 
-    public function test_revenue_recovery_includes_overdue_pallets_without_a_client(): void
+    public function test_revenue_recovery_excludes_overdue_pallets_without_a_client(): void
     {
         $admin = $this->makeUser('admin');
         $atCustomer = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
@@ -180,9 +180,7 @@ class PalletDashboardStatsFeatureTest extends TestCase
         $this->actingAs($admin, 'api')
             ->getJson('/api/pallets/dashboard-stats')
             ->assertOk()
-            ->assertJsonPath('data.top_overdue_clients.0.user_id', null)
-            ->assertJsonPath('data.top_overdue_clients.0.client_name', 'No client')
-            ->assertJsonPath('data.top_overdue_clients.0.overdue_pallets', 1)
-            ->assertJsonPath('data.top_overdue_clients.0.debt_eur', 15);
+            ->assertJsonPath('data.overdue_units', 0)
+            ->assertJsonCount(0, 'data.top_overdue_clients');
     }
 }

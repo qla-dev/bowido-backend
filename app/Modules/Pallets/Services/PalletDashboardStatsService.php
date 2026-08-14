@@ -84,7 +84,7 @@ class PalletDashboardStatsService
                     if (! isset($clients[$clientKey])) {
                         $clients[$clientKey] = [
                             'user_id' => $clientId,
-                            'client_name' => $customer?->company_name ?: $pallet->user?->name ?: 'No client',
+                            'client_name' => $customer?->company_name ?: $pallet->user?->name ?: '-',
                             'overdue_pallets' => 0,
                             'debt_eur' => 0.0,
                         ];
@@ -135,7 +135,7 @@ class PalletDashboardStatsService
     {
         $status = $pallet->currentStatus;
 
-        if (! $status?->is_billable || ! $pallet->last_status_changed_at) {
+        if (! $pallet->user_id || ! $status?->is_billable || ! $pallet->last_status_changed_at) {
             return false;
         }
 

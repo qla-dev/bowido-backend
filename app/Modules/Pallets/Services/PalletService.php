@@ -48,13 +48,6 @@ class PalletService extends BaseCrudService
 
             if (in_array($status->slug, ['bih-nl-transport', 'nl-bih-transport'], true)) {
                 $attributes['current_location'] = 'Na putu';
-            } elseif ($this->customerAssignmentRule->statusAllowsCustomer($status)) {
-                $customer = $data->userId
-                    ? User::query()->with('customerDetail')->find($data->userId)
-                    : null;
-                $attributes['current_location'] = $customer?->customerDetail?->warehouseOneAddress()
-                    ?? $customer?->customerDetail?->businessAddress()
-                    ?? '';
             }
 
             /** @var Pallet $pallet */
@@ -80,22 +73,6 @@ class PalletService extends BaseCrudService
 
             if (in_array($nextStatus->slug, ['bih-nl-transport', 'nl-bih-transport'], true)) {
                 $attributes['current_location'] = 'Na putu';
-            }
-
-            if ($this->customerAssignmentRule->statusAllowsCustomer($nextStatus)) {
-                $customer = $data->userId
-                    ? User::query()->with('customerDetail')->find($data->userId)
-                    : null;
-                $customerAddress = $customer?->customerDetail?->warehouseOneAddress()
-                    ?? $customer?->customerDetail?->businessAddress()
-                    ?? '';
-                $requestedLocation = trim((string) ($attributes['current_location'] ?? ''));
-                $deliveryAddress = $this->deliveryLocationAddress($lockedPallet);
-                $attributes['current_location'] = in_array($nextStatus->slug, ['bij-de-klant', 'ophalen-klant'], true)
-                    && $deliveryAddress !== null
-                    && $requestedLocation === $deliveryAddress
-                        ? $deliveryAddress
-                        : $customerAddress;
             }
 
             $overdueInvoiceData = $this->overdueInvoiceData($lockedPallet, $data->currentStatusId);
@@ -343,21 +320,6 @@ class PalletService extends BaseCrudService
         $status = $this->statusRepository->findOrFail($data->currentStatusId);
 
         return $this->customerAssignmentRule->statusAllowsCustomer($status) ? $data->userId : null;
-    }
-
-    private function deliveryLocationAddress(Pallet $pallet): ?string
-    {
-        $location = $pallet->deliveryLocation;
-
-        if ($location === null) {
-            return null;
-        }
-
-        $streetLine = trim(implode(' ', array_filter([$location->street, $location->house_number])));
-        $localityLine = trim(implode(' ', array_filter([$location->postal_code, $location->city])));
-        $structuredAddress = implode(', ', array_filter([$streetLine, $localityLine]));
-
-        return $structuredAddress !== '' ? $structuredAddress : $location->formatted_address;
     }
 
     /**
