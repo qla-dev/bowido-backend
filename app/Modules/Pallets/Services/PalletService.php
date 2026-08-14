@@ -50,6 +50,10 @@ class PalletService extends BaseCrudService
                 $attributes['current_location'] = 'Na putu';
             }
 
+            if ($this->isUnknownStatus($status)) {
+                $attributes['current_location'] = null;
+            }
+
             /** @var Pallet $pallet */
             $pallet = $this->palletRepository->create($attributes);
 
@@ -73,6 +77,11 @@ class PalletService extends BaseCrudService
 
             if (in_array($nextStatus->slug, ['bih-nl-transport', 'nl-bih-transport'], true)) {
                 $attributes['current_location'] = 'Na putu';
+            }
+
+            if ($this->isUnknownStatus($nextStatus)) {
+                $attributes['current_location'] = null;
+                $lockedPallet->deliveryLocation()->delete();
             }
 
             $overdueInvoiceData = $this->overdueInvoiceData($lockedPallet, $data->currentStatusId);
@@ -105,6 +114,13 @@ class PalletService extends BaseCrudService
     {
         return DB::transaction(function () use ($pallet, $location): Pallet {
             $lockedPallet = $this->palletRepository->lockForUpdate($pallet->id);
+            $lockedPallet->loadMissing('currentStatus');
+
+            if ($this->isUnknownStatus($lockedPallet->currentStatus)) {
+                throw ValidationException::withMessages([
+                    'current_location' => [__('Unknown pallets cannot have a location.')],
+                ]);
+            }
 
             /** @var Pallet $updatedPallet */
             $updatedPallet = $this->palletRepository->update($lockedPallet, [
@@ -320,6 +336,11 @@ class PalletService extends BaseCrudService
         $status = $this->statusRepository->findOrFail($data->currentStatusId);
 
         return $this->customerAssignmentRule->statusAllowsCustomer($status) ? $data->userId : null;
+    }
+
+    private function isUnknownStatus(?Status $status): bool
+    {
+        return $status?->slug === 'onbekend';
     }
 
     /**

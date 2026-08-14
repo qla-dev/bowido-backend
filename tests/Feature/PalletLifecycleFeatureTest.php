@@ -99,6 +99,46 @@ class PalletLifecycleFeatureTest extends TestCase
         ]);
     }
 
+    public function test_unknown_pallets_always_have_no_location_and_cannot_be_given_one(): void
+    {
+        $admin = $this->makeUser('admin');
+        $warehouse = Status::query()->where('slug', 'bowido-nl')->firstOrFail();
+        $unknown = Status::query()->where('slug', 'onbekend')->firstOrFail();
+        $pallet = Pallet::factory()->create([
+            'current_status_id' => $warehouse->id,
+            'current_location' => 'Known location',
+        ]);
+
+        $this->actingAs($admin, 'api')
+            ->putJson('/api/pallets/'.$pallet->id, [
+                'current_status_id' => $unknown->id,
+                'current_location' => 'Location supplied by the client',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.current_location', null);
+
+        $this->assertDatabaseHas('pallets', [
+            'id' => $pallet->id,
+            'current_location' => null,
+        ]);
+
+        $this->actingAs($admin, 'api')
+            ->putJson('/api/pallets/'.$pallet->id.'/current-location', [
+                'current_location' => 'Another location',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('current_location');
+
+        $this->actingAs($admin, 'api')
+            ->postJson('/api/pallets', [
+                'current_status_id' => $unknown->id,
+                'qr_code' => 'unknown-pallet-001',
+                'current_location' => 'Location supplied on creation',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.current_location', null);
+    }
+
     public function test_customer_can_update_only_their_own_client_tracking_fields(): void
     {
         $customer = $this->makeUser('customer');
