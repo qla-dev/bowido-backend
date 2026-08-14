@@ -225,7 +225,7 @@ class PalletService extends BaseCrudService
         Pallet $pallet,
         User $customer,
         int $statusId,
-        string $location,
+        ?string $location,
     ): Pallet {
         $status = $this->statusRepository->findOrFail($statusId);
 
@@ -238,10 +238,14 @@ class PalletService extends BaseCrudService
         return DB::transaction(function () use ($pallet, $customer, $status, $location): Pallet {
             $lockedPallet = $this->palletRepository->lockForUpdate($pallet->id);
             $changedAt = now();
+            $trimmedLocation = $location === null ? null : trim($location);
+            $nextLocation = filled($trimmedLocation)
+                ? $trimmedLocation
+                : $lockedPallet->current_location;
             $lockedPallet->update([
                 'user_id' => $customer->id,
                 'current_status_id' => $status->id,
-                'current_location' => trim($location),
+                'current_location' => $nextLocation,
                 'last_status_changed_at' => $changedAt,
                 ...$this->customerTimerAttributes($lockedPallet, $status, $changedAt),
             ]);
@@ -250,7 +254,7 @@ class PalletService extends BaseCrudService
                 'pallet_id' => $lockedPallet->id,
                 'customer_id' => $customer->id,
                 'status_id' => $status->id,
-                'location' => trim($location),
+                'location' => $nextLocation,
             ]);
 
             return $lockedPallet->fresh(['user.customerDetail', 'currentStatus', 'deliveryLocation']);

@@ -322,6 +322,34 @@ class DeliveryLocationFeatureTest extends TestCase
             ->assertJsonPath('data.current_status_id', $pickup->id);
     }
 
+    public function test_customer_can_change_status_without_selecting_a_new_location(): void
+    {
+        $customer = $this->makeUser('customer');
+        $atCustomer = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $pickup = Status::query()->where('slug', 'ophalen-klant')->firstOrFail();
+        $pallet = Pallet::factory()->create([
+            'user_id' => $customer->id,
+            'current_status_id' => $atCustomer->id,
+            'current_location' => 'Existing customer location',
+        ]);
+
+        $this->actingAs($customer, 'api')
+            ->putJson('/api/pallets/'.$pallet->id.'/claim-customer-possession', [
+                'current_status_id' => $pickup->id,
+                'current_location' => '',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.current_status_id', $pickup->id)
+            ->assertJsonPath('data.current_location', 'Existing customer location');
+
+        $this->assertDatabaseHas('pallets', [
+            'id' => $pallet->id,
+            'user_id' => $customer->id,
+            'current_status_id' => $pickup->id,
+            'current_location' => 'Existing customer location',
+        ]);
+    }
+
     public function test_existing_delivery_location_can_be_updated(): void
     {
         Http::fake([
