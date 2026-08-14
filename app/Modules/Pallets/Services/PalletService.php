@@ -333,14 +333,20 @@ class PalletService extends BaseCrudService
     {
         $currentSlug = $pallet->currentStatus?->slug;
 
-        if ($nextStatus->slug === 'bij-de-klant' && $currentSlug !== 'bij-de-klant') {
+        if (
+            $this->customerAssignmentRule->isAtCustomer($nextStatus)
+            && ! $this->customerAssignmentRule->isAtCustomer($currentSlug)
+        ) {
             return [
                 'customer_timer_started_at' => $changedAt,
                 'customer_timer_frozen_at' => null,
             ];
         }
 
-        if ($currentSlug === 'bij-de-klant' && $nextStatus->slug === 'ophalen-klant') {
+        if (
+            $this->customerAssignmentRule->isAtCustomer($currentSlug)
+            && $this->customerAssignmentRule->isCustomerPickup($nextStatus)
+        ) {
             return [
                 // Legacy pallets did not yet have a dedicated start time.
                 'customer_timer_started_at' => $pallet->customer_timer_started_at ?? $pallet->last_status_changed_at ?? $changedAt,
@@ -359,8 +365,8 @@ class PalletService extends BaseCrudService
         $nextStatus = $this->statusRepository->findOrFail($nextStatusId);
 
         if (
-            $pallet->currentStatus?->slug !== 'bij-de-klant'
-            || $nextStatus->slug !== 'ophalen-klant'
+            ! $this->customerAssignmentRule->isAtCustomer($pallet->currentStatus)
+            || ! $this->customerAssignmentRule->isCustomerPickup($nextStatus)
             || ! $pallet->user instanceof User
             || ! $pallet->last_status_changed_at
         ) {

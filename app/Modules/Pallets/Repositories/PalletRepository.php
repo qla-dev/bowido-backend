@@ -25,6 +25,17 @@ class PalletRepository extends BaseRepository
             'current_location' => 'current_location',
             'is_active' => 'is_active',
             'is_ghost' => 'is_ghost',
+            'has_qr_code' => function (Builder $query, mixed $value): void {
+                if ((bool) $value) {
+                    $query->whereNotNull('qr_code')->where('qr_code', '!=', '');
+
+                    return;
+                }
+
+                $query->where(function (Builder $noQrQuery): void {
+                    $noQrQuery->whereNull('qr_code')->orWhere('qr_code', '');
+                });
+            },
             'is_for_repair' => 'is_for_repair',
         ];
     }

@@ -16,6 +16,34 @@ class PalletLifecycleFeatureTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_pallet_listing_can_be_scoped_to_qr_code_presence(): void
+    {
+        $admin = $this->makeUser('admin');
+        $status = Status::query()->where('slug', 'bowido-nl')->firstOrFail();
+        $qrPallet = Pallet::factory()->create([
+            'current_status_id' => $status->id,
+            'qr_code' => 'QR-TRACKED-001',
+            'is_ghost' => false,
+        ]);
+        $noQrPallet = Pallet::factory()->create([
+            'current_status_id' => $status->id,
+            'qr_code' => null,
+            'is_ghost' => false,
+        ]);
+
+        $this->actingAs($admin, 'api')
+            ->getJson('/api/pallets?has_qr_code=1')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $qrPallet->id)
+            ->assertJsonCount(1, 'data');
+
+        $this->actingAs($admin, 'api')
+            ->getJson('/api/pallets?has_qr_code=0')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $noQrPallet->id)
+            ->assertJsonCount(1, 'data');
+    }
+
     public function test_customer_pickup_freezes_the_return_and_deadline_timer(): void
     {
         $customer = $this->makeUser('customer');
