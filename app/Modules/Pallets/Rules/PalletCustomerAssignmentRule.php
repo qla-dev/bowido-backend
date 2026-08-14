@@ -6,7 +6,7 @@ use App\Modules\Statuses\Models\Status;
 
 class PalletCustomerAssignmentRule
 {
-    public const AT_CUSTOMER_STATUS_SLUGS = ['bij-de-klant', 'at_customer', 'bij_de_klant'];
+    public const AT_CUSTOMER_STATUS_SLUGS = ['bij-de-klant', 'at_customer'];
 
     public const CUSTOMER_PICKUP_STATUS_SLUGS = ['ophalen-klant', 'pending_return'];
 
