@@ -10,6 +10,7 @@ class UpdateClientPalletStatusRequest extends ApiFormRequest
     {
         return [
             'current_status_id' => ['required', 'integer', 'exists:statuses,id'],
+            'current_location' => ['sometimes', 'nullable', 'string', 'max:255'],
         ];
     }
 }

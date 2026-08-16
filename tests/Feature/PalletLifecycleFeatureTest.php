@@ -9,6 +9,7 @@ use App\Modules\Pallets\Models\Pallet;
 use App\Modules\Shared\Enums\AuditEventType;
 use App\Modules\Statuses\Models\Status;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class PalletLifecycleFeatureTest extends TestCase
@@ -36,6 +37,74 @@ class PalletLifecycleFeatureTest extends TestCase
             'id' => $pallet->id,
             'current_location' => 'Warehouse 2, Example Street 10',
         ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'pallet_id' => $pallet->id,
+            'event_type' => AuditEventType::LocationChanged->value,
+            'old_location' => 'Old location',
+            'new_location' => 'Warehouse 2, Example Street 10',
+        ]);
+    }
+
+    public function test_customer_status_with_location_is_atomic_and_location_only_change_does_not_restart_counter(): void
+    {
+        $customer = $this->makeUser('customer');
+        $atCustomer = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $returnStatus = Status::query()->where('slug', 'ophalen-klant')->firstOrFail();
+        $originalStartedAt = Carbon::parse('2026-08-01 09:00:00');
+        $pallet = Pallet::factory()->create([
+            'user_id' => $customer->id,
+            'current_status_id' => $atCustomer->id,
+            'current_location' => 'Warehouse 1',
+            'last_status_changed_at' => $originalStartedAt,
+        ]);
+
+        $this->actingAs($customer, 'api')
+            ->putJson('/api/pallets/'.$pallet->id.'/client-status', [
+                'current_status_id' => $atCustomer->id,
+                'current_location' => 'Warehouse 2',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.current_location', 'Warehouse 2');
+
+        $pallet->refresh();
+        $this->assertTrue($pallet->last_status_changed_at->equalTo($originalStartedAt));
+        $this->assertDatabaseHas('audit_logs', [
+            'pallet_id' => $pallet->id,
+            'event_type' => AuditEventType::LocationChanged->value,
+            'old_location' => 'Warehouse 1',
+            'new_location' => 'Warehouse 2',
+        ]);
+
+        Carbon::setTestNow('2026-08-15 10:30:00');
+        $this->actingAs($customer, 'api')
+            ->putJson('/api/pallets/'.$pallet->id.'/client-status', [
+                'current_status_id' => $returnStatus->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.current_location', 'Warehouse 2');
+
+        $pallet->refresh();
+        $this->assertTrue($pallet->last_status_changed_at->equalTo(now()));
+        $this->assertDatabaseHas('audit_logs', [
+            'pallet_id' => $pallet->id,
+            'event_type' => AuditEventType::StatusChanged->value,
+            'old_status_id' => $atCustomer->id,
+            'new_status_id' => $returnStatus->id,
+            'new_location' => 'Warehouse 2',
+        ]);
+
+        Carbon::setTestNow('2026-08-15 11:00:00');
+        $this->actingAs($customer, 'api')
+            ->putJson('/api/pallets/'.$pallet->id.'/client-status', [
+                'current_status_id' => $atCustomer->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.current_status_id', $atCustomer->id)
+            ->assertJsonPath('data.current_location', 'Warehouse 2');
+
+        $pallet->refresh();
+        $this->assertTrue($pallet->last_status_changed_at->equalTo(now()));
+        Carbon::setTestNow();
     }
 
     public function test_customer_can_update_only_their_own_client_tracking_fields(): void

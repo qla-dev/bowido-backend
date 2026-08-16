@@ -151,15 +151,22 @@ class PalletService extends BaseCrudService
         return $updatedPallet;
     }
 
-    public function updateCurrentLocation(Pallet $pallet, string $location): Pallet
+    public function updateCurrentLocation(Pallet $pallet, string $location, User $actor): Pallet
     {
-        return DB::transaction(function () use ($pallet, $location): Pallet {
+        return DB::transaction(function () use ($pallet, $location, $actor): Pallet {
             $lockedPallet = $this->palletRepository->lockForUpdate($pallet->id);
+            $originalAttributes = $lockedPallet->only(['user_id', 'current_status_id', 'current_location', 'qr_code']);
+            $attributes = ['current_location' => trim($location)];
 
             /** @var Pallet $updatedPallet */
-            $updatedPallet = $this->palletRepository->update($lockedPallet, [
-                'current_location' => trim($location),
-            ]);
+            $updatedPallet = $this->palletRepository->update($lockedPallet, $attributes);
+
+            $this->trackableAssetService->recordMutations(
+                pallet: $updatedPallet,
+                originalAttributes: $originalAttributes,
+                attributes: $attributes,
+                actor: $actor,
+            );
 
             return $updatedPallet->load(['user.role', 'user.customerDetail', 'currentStatus', 'deliveryLocation']);
         });
@@ -195,7 +202,7 @@ class PalletService extends BaseCrudService
         });
     }
 
-    public function updateClientStatus(Pallet $pallet, int $statusId, User $actor): Pallet
+    public function updateClientStatus(Pallet $pallet, int $statusId, User $actor, ?string $location = null): Pallet
     {
         $nextStatus = $this->statusRepository->findOrFail($statusId);
 
@@ -205,15 +212,21 @@ class PalletService extends BaseCrudService
             ]);
         }
 
-        return DB::transaction(function () use ($pallet, $statusId, $actor): Pallet {
+        return DB::transaction(function () use ($pallet, $statusId, $actor, $location): Pallet {
             $lockedPallet = $this->palletRepository->lockForUpdate($pallet->id);
             $originalAttributes = $lockedPallet->only(['user_id', 'current_status_id', 'current_location', 'qr_code']);
+            $requestedLocation = trim((string) $location);
             $attributes = [
                 'user_id' => $lockedPallet->user_id,
                 'current_status_id' => $statusId,
-                'current_location' => $lockedPallet->current_location,
-                'last_status_changed_at' => now(),
+                'current_location' => $requestedLocation !== ''
+                    ? $requestedLocation
+                    : $lockedPallet->current_location,
             ];
+
+            if ((int) $lockedPallet->current_status_id !== $statusId) {
+                $attributes['last_status_changed_at'] = now();
+            }
 
             /** @var Pallet $updatedPallet */
             $updatedPallet = $this->palletRepository->update($lockedPallet, $attributes);
