@@ -37,6 +37,11 @@ class PalletRepository extends BaseRepository
                 });
             },
             'is_for_repair' => 'is_for_repair',
+            'updated_since' => function (Builder $query, mixed $value): void {
+                // Use an inclusive boundary so records written in the same
+                // database timestamp tick as the cursor are not missed.
+                $query->where('updated_at', '>=', date_create_immutable((string) $value));
+            },
         ];
     }
 

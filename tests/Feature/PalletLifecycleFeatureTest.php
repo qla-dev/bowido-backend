@@ -44,6 +44,28 @@ class PalletLifecycleFeatureTest extends TestCase
             ->assertJsonCount(1, 'data');
     }
 
+    public function test_pallet_listing_can_be_scoped_to_records_updated_since_a_cursor(): void
+    {
+        $admin = $this->makeUser('admin');
+        $status = Status::query()->where('slug', 'bowido-nl')->firstOrFail();
+
+        Carbon::setTestNow('2026-08-01 09:00:00');
+        $olderPallet = Pallet::factory()->create(['current_status_id' => $status->id]);
+        Carbon::setTestNow('2026-08-02 09:00:00');
+        $updatedPallet = Pallet::factory()->create(['current_status_id' => $status->id]);
+
+        try {
+            $this->actingAs($admin, 'api')
+                ->getJson('/api/pallets?updated_since=2026-08-02T00%3A00%3A00Z')
+                ->assertOk()
+                ->assertJsonCount(1, 'data')
+                ->assertJsonPath('data.0.id', $updatedPallet->id);
+        } finally {
+            Carbon::setTestNow();
+        }
+
+    }
+
     public function test_customer_pickup_freezes_the_return_and_deadline_timer(): void
     {
         $customer = $this->makeUser('customer');

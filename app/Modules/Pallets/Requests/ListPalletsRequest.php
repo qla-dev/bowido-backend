@@ -19,6 +19,9 @@ class ListPalletsRequest extends PaginatedIndexRequest
             'is_ghost' => ['sometimes', 'boolean'],
             'has_qr_code' => ['sometimes', 'boolean'],
             'is_for_repair' => ['sometimes', 'boolean'],
+            // Used by the live client sync to retrieve only records changed
+            // since its last successful poll.
+            'updated_since' => ['sometimes', 'date'],
         ];
     }
 }
