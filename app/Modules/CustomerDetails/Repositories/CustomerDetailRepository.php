@@ -10,6 +10,11 @@ use Illuminate\Database\Eloquent\Model;
 
 class CustomerDetailRepository extends BaseRepository
 {
+    protected function newQuery(?User $actor = null): Builder
+    {
+        return parent::newQuery($actor)->withCount('invoices');
+    }
+
     protected function allowedFilters(): array
     {
         return [
@@ -96,6 +101,9 @@ class CustomerDetailRepository extends BaseRepository
             'warehouses' => 'warehouse1_street',
             'warehouse1' => 'warehouse1_street',
             'warehouse2' => 'warehouse2_street',
+            'invoiceCount' => fn (Builder $query, string $direction) => $query
+                ->orderBy('invoices_count', $direction)
+                ->orderBy('id'),
             'country' => 'country',
             'rate' => 'default_price_per_day',
             'price_per_day' => 'default_price_per_day',

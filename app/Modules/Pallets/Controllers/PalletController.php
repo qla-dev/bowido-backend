@@ -263,7 +263,7 @@ class PalletController extends ApiController
             $pallet,
             $request->user(),
             (int) $data['current_status_id'],
-            $data['current_location'],
+            $data['current_location'] ?? null,
         );
 
         return $this->successItem($updatedPallet, PalletResource::class, __('Pallet assigned to your possession.'));

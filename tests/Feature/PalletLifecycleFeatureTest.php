@@ -16,6 +16,66 @@ class PalletLifecycleFeatureTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_pallet_listing_can_be_scoped_to_qr_code_presence(): void
+    {
+        $admin = $this->makeUser('admin');
+        $status = Status::query()->where('slug', 'bowido-nl')->firstOrFail();
+        $qrPallet = Pallet::factory()->create([
+            'current_status_id' => $status->id,
+            'qr_code' => 'QR-TRACKED-001',
+            'is_ghost' => false,
+        ]);
+        $noQrPallet = Pallet::factory()->create([
+            'current_status_id' => $status->id,
+            'qr_code' => null,
+            'is_ghost' => false,
+        ]);
+
+        $this->actingAs($admin, 'api')
+            ->getJson('/api/pallets?has_qr_code=1')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $qrPallet->id)
+            ->assertJsonCount(1, 'data');
+
+        $this->actingAs($admin, 'api')
+            ->getJson('/api/pallets?has_qr_code=0')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $noQrPallet->id)
+            ->assertJsonCount(1, 'data');
+    }
+
+    public function test_customer_pickup_freezes_the_return_and_deadline_timer(): void
+    {
+        $customer = $this->makeUser('customer');
+        $atCustomer = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $pickup = Status::query()->where('slug', 'ophalen-klant')->firstOrFail();
+        $startedAt = Carbon::parse('2026-08-01 09:00:00');
+        $frozenAt = Carbon::parse('2026-08-06 14:30:00');
+        $pallet = Pallet::factory()->create([
+            'user_id' => $customer->id,
+            'current_status_id' => $atCustomer->id,
+            'last_status_changed_at' => $startedAt,
+        ]);
+
+        Carbon::setTestNow($frozenAt);
+
+        try {
+            $this->actingAs($customer, 'api')
+                ->putJson('/api/pallets/'.$pallet->id.'/client-status', [
+                    'current_status_id' => $pickup->id,
+                ])
+                ->assertOk()
+                ->assertJsonPath('data.current_status_id', $pickup->id);
+
+            $pallet->refresh();
+
+            $this->assertTrue($pallet->customer_timer_started_at->equalTo($startedAt));
+            $this->assertTrue($pallet->customer_timer_frozen_at->equalTo($frozenAt));
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
     public function test_current_location_update_persists_the_location_chosen_in_the_client_list(): void
     {
         $admin = $this->makeUser('admin');
@@ -107,6 +167,46 @@ class PalletLifecycleFeatureTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_unknown_pallets_always_have_no_location_and_cannot_be_given_one(): void
+    {
+        $admin = $this->makeUser('admin');
+        $warehouse = Status::query()->where('slug', 'bowido-nl')->firstOrFail();
+        $unknown = Status::query()->where('slug', 'onbekend')->firstOrFail();
+        $pallet = Pallet::factory()->create([
+            'current_status_id' => $warehouse->id,
+            'current_location' => 'Known location',
+        ]);
+
+        $this->actingAs($admin, 'api')
+            ->putJson('/api/pallets/'.$pallet->id, [
+                'current_status_id' => $unknown->id,
+                'current_location' => 'Location supplied by the client',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.current_location', null);
+
+        $this->assertDatabaseHas('pallets', [
+            'id' => $pallet->id,
+            'current_location' => null,
+        ]);
+
+        $this->actingAs($admin, 'api')
+            ->putJson('/api/pallets/'.$pallet->id.'/current-location', [
+                'current_location' => 'Another location',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('current_location');
+
+        $this->actingAs($admin, 'api')
+            ->postJson('/api/pallets', [
+                'current_status_id' => $unknown->id,
+                'qr_code' => 'unknown-pallet-001',
+                'current_location' => 'Location supplied on creation',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.current_location', null);
+    }
+
     public function test_customer_can_update_only_their_own_client_tracking_fields(): void
     {
         $customer = $this->makeUser('customer');
@@ -173,7 +273,7 @@ class PalletLifecycleFeatureTest extends TestCase
         }
     }
 
-    public function test_customer_pickup_keeps_the_selected_client_and_status(): void
+    public function test_customer_status_change_keeps_an_unselected_location_empty(): void
     {
         $admin = $this->makeUser('admin');
         $customer = $this->makeUser('customer');
@@ -196,11 +296,44 @@ class PalletLifecycleFeatureTest extends TestCase
         $this->actingAs($admin, 'api')->putJson('/api/pallets/'.$pallet->id, [
             'user_id' => $customer->id,
             'current_status_id' => $pickup->id,
-            'current_location' => 'Ignored frontend location',
+            'current_location' => '',
         ])->assertOk()
             ->assertJsonPath('data.current_status_slug', 'ophalen-klant')
             ->assertJsonPath('data.user_id', $customer->id)
-            ->assertJsonPath('data.current_location', 'Pickupstraat 9, 1000 AA Amsterdam');
+            ->assertJsonPath('data.current_location', null);
+    }
+
+    public function test_admin_can_change_or_clear_a_pallet_client_assignment(): void
+    {
+        $admin = $this->makeUser('admin');
+        $firstCustomer = $this->makeUser('customer');
+        $secondCustomer = $this->makeUser('customer');
+        $atCustomer = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $pallet = Pallet::factory()->create([
+            'user_id' => $firstCustomer->id,
+            'current_status_id' => $atCustomer->id,
+        ]);
+
+        $this->actingAs($admin, 'api')
+            ->putJson('/api/pallets/'.$pallet->id, [
+                'user_id' => $secondCustomer->id,
+                'current_status_id' => $atCustomer->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.user_id', $secondCustomer->id);
+
+        $this->actingAs($admin, 'api')
+            ->putJson('/api/pallets/'.$pallet->id, [
+                'user_id' => null,
+                'current_status_id' => $atCustomer->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.user_id', null);
+
+        $this->assertDatabaseHas('pallets', [
+            'id' => $pallet->id,
+            'user_id' => null,
+        ]);
     }
 
     public function test_customer_pickup_can_use_the_pallet_delivery_address_as_its_primary_location(): void
@@ -260,6 +393,25 @@ class PalletLifecycleFeatureTest extends TestCase
             ->assertJsonPath('data.current_location', 'Nikole Tesle 71, 74000 Doboj');
     }
 
+    public function test_repair_status_keeps_only_the_most_recent_note(): void
+    {
+        $admin = $this->makeUser('admin', ['name' => 'Bowido Admin']);
+        $pallet = Pallet::factory()->create([
+            'notes' => "Previous repair note\nOlder repair note",
+            'is_for_repair' => false,
+        ]);
+
+        $this->actingAs($admin, 'api')
+            ->putJson('/api/pallets/'.$pallet->id.'/repair-status', ['is_for_repair' => true])
+            ->assertOk()
+            ->assertJsonPath('data.notes', 'Bowido Admin admitted pallet to service.');
+
+        $this->assertSame(
+            'Bowido Admin admitted pallet to service.',
+            $pallet->fresh()->notes,
+        );
+    }
+
     public function test_status_and_qr_changes_create_audit_logs_with_the_previous_and_new_locations(): void
     {
         $admin = $this->makeUser('admin');
@@ -299,7 +451,7 @@ class PalletLifecycleFeatureTest extends TestCase
             'asset_type' => 'pallet',
             'qr_code' => 'pal-0002',
             'reference_code' => 'RF-22',
-            'current_location' => 'Ignored frontend location',
+            'current_location' => '',
             'notes' => 'Delivered to customer',
             'is_active' => true,
             'is_ghost' => false,
@@ -311,7 +463,7 @@ class PalletLifecycleFeatureTest extends TestCase
             ->assertJsonPath('data.user_id', $customerB->id)
             ->assertJsonPath('data.current_status_id', $atCustomer->id)
             ->assertJsonPath('data.qr_code', 'PAL-0002')
-            ->assertJsonPath('data.current_location', 'Industrieweg 10, 1234 AB Utrecht');
+            ->assertJsonPath('data.current_location', null);
 
         $auditLogs = AuditLog::query()
             ->where('pallet_id', $pallet->id)
@@ -328,7 +480,7 @@ class PalletLifecycleFeatureTest extends TestCase
         $this->assertSame($transport->id, $statusLog->old_status_id);
         $this->assertSame($atCustomer->id, $statusLog->new_status_id);
         $this->assertSame('Na putu', $statusLog->old_location);
-        $this->assertSame('Industrieweg 10, 1234 AB Utrecht', $statusLog->new_location);
+        $this->assertNull($statusLog->new_location);
 
         $qrLog = $auditLogs->get(AuditEventType::QrCodeChanged->value);
         $this->assertNotNull($qrLog);

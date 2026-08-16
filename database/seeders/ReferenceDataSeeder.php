@@ -67,7 +67,7 @@ class ReferenceDataSeeder extends Seeder
                 'description' => 'Pallet is at the customer location and active billing starts once a customer is assigned.',
                 'is_billable' => true,
                 'grace_period_days' => 14,
-                'price_per_day' => 2.50,
+                'price_per_day' => 2.00,
                 'is_active' => true,
                 'sort_order' => 20,
             ],
@@ -149,6 +149,13 @@ class ReferenceDataSeeder extends Seeder
                     'can_delete' => $permission['can_delete'],
                 ];
 
+                if (
+                    $roleName === 'warehouse_operator'
+                    && $permission['module_id'] === $modules->get(ModuleKey::ImageGallery->value)?->id
+                ) {
+                    $attributes['scope'] = 'warehouse_nl';
+                }
+
                 if ($roleName === 'admin') {
                     RolePermission::query()->updateOrCreate(
                         ['role_id' => $role->id, 'module_id' => $permission['module_id']],
@@ -189,6 +196,7 @@ class ReferenceDataSeeder extends Seeder
                 ModuleKey::GhostPalletReports->value => ['can_list', 'can_view', 'can_create', 'can_update'],
                 ModuleKey::Invoices->value => ['can_list', 'can_view'],
                 ModuleKey::InvoiceItems->value => ['can_list', 'can_view'],
+                ModuleKey::ImageGallery->value => ['can_list', 'can_view'],
             ],
             'operator' => [
                 ModuleKey::Pallets->value => ['can_list', 'can_view', 'can_create', 'can_update'],
@@ -354,8 +362,8 @@ class ReferenceDataSeeder extends Seeder
             ],
             [
                 'slug' => ModuleKey::ImageGallery->value,
-                'name' => 'Image Gallery',
-                'description' => 'Secure pallet image gallery with warehouse visibility scopes.',
+                'name' => 'Delivery Information',
+                'description' => 'Delivery photos for pallets leaving the Bowido NL warehouse.',
                 'legacy_slugs' => [],
             ],
         ];

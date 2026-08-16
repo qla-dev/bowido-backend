@@ -7,18 +7,22 @@ use App\Modules\Shared\Http\Controllers\ApiController;
 use App\Modules\Users\DTOs\UserData;
 use App\Modules\Users\Models\User;
 use App\Modules\Users\Requests\ListUsersRequest;
+use App\Modules\Users\Requests\SendLoginDetailsRequest;
 use App\Modules\Users\Requests\StoreUserRequest;
 use App\Modules\Users\Requests\UpdateUserRequest;
 use App\Modules\Users\Resources\UserResource;
+use App\Modules\Users\Services\CredentialDeliveryService;
 use App\Modules\Users\Services\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class UserController extends ApiController
 {
-    public function __construct(private readonly UserService $userService)
-    {
-    }
+    public function __construct(
+        private readonly UserService $userService,
+        private readonly CredentialDeliveryService $credentialDeliveryService,
+    ) {}
 
     public function index(ListUsersRequest $request): JsonResponse
     {
@@ -39,7 +43,20 @@ class UserController extends ApiController
             'payload' => $request->except(['password', 'password_confirmation']),
         ]);
 
-        $user = $this->userService->create(UserData::fromArray($request->validated()));
+        $created = $this->userService->createWithTemporaryPassword(UserData::fromArray($request->validated()));
+        $user = $created['user'];
+        $emailSent = true;
+
+        try {
+            $this->credentialDeliveryService->send($user, $created['temporary_password']);
+        } catch (Throwable $exception) {
+            $emailSent = false;
+            Log::warning('User created but credential email could not be sent.', [
+                'user_id' => $user->id,
+                'exception_class' => $exception::class,
+                'exception_message' => $exception->getMessage(),
+            ]);
+        }
 
         Log::info('Client user and customer details created.', [
             'user_id' => $user->id,
@@ -47,7 +64,33 @@ class UserController extends ApiController
             'email' => $user->email,
         ]);
 
-        return $this->successItem($user, UserResource::class, __('User created successfully.'), 201);
+        $data = (new UserResource($user))->resolve();
+        $data['credential_email_sent'] = $emailSent;
+        $data['credential_email_warning'] = $emailSent
+            ? null
+            : __('The user was created, but the login details email could not be sent. Use Send login details to try again.');
+
+        return $this->success(
+            $data,
+            $emailSent
+                ? __('User created successfully.')
+                : __('User created, but login details could not be sent.'),
+            status: 201,
+        );
+    }
+
+    public function sendLoginDetails(SendLoginDetailsRequest $request): JsonResponse
+    {
+        $this->authorize('distributeCredentials', User::class);
+
+        $result = $this->credentialDeliveryService->resetAndSend($request->validated('user_ids'));
+
+        return $this->success(
+            $result,
+            count($result['failed']) === 0
+                ? __('Login details sent successfully.')
+                : __('Some login details could not be sent.'),
+        );
     }
 
     public function show(User $user): JsonResponse

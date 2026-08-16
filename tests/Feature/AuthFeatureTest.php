@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Modules\CustomerDetails\Models\CustomerDetail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class AuthFeatureTest extends TestCase
@@ -17,6 +18,38 @@ class AuthFeatureTest extends TestCase
 
         config()->set('services.kvk.api_key', 'test-kvk-key');
         config()->set('services.kvk.basisprofiel_url', 'https://api.test.kvk/basisprofielen');
+    }
+
+    public function test_authenticated_user_can_change_password_after_confirming_current_password(): void
+    {
+        $user = $this->makeUser('customer', ['password' => 'old-password']);
+
+        $this->actingAs($user, 'api')
+            ->putJson('/api/auth/change-password', [
+                'current_password' => 'old-password',
+                'password' => 'new-password',
+                'password_confirmation' => 'new-password',
+            ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Password changed successfully.');
+
+        $this->assertTrue(Hash::check('new-password', $user->fresh()->password));
+    }
+
+    public function test_password_change_rejects_an_incorrect_current_password(): void
+    {
+        $user = $this->makeUser('customer', ['password' => 'old-password']);
+
+        $this->actingAs($user, 'api')
+            ->putJson('/api/auth/change-password', [
+                'current_password' => 'wrong-password',
+                'password' => 'new-password',
+                'password_confirmation' => 'new-password',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('current_password');
+
+        $this->assertTrue(Hash::check('old-password', $user->fresh()->password));
     }
 
     public function test_kvk_lookup_rejects_an_invalid_number(): void
@@ -182,6 +215,53 @@ class AuthFeatureTest extends TestCase
             'id' => $firstUser->id,
             'email' => 'first@example.com',
         ]);
+    }
+
+    public function test_kvk_registration_creates_a_customer_when_the_company_is_not_imported_locally(): void
+    {
+        Http::fake(['api.test.kvk/*' => Http::response([
+            'kvkNummer' => '82860734',
+            'naam' => 'BoWiDo B.V.',
+        ], 200)]);
+
+        $this->postJson('/api/auth/kvk-register', [
+            'kvk' => '82860734',
+            'name' => 'BoWiDo B.V.',
+            'email' => 'new-kvk-customer@example.com',
+            'phone_number' => '+31612345678',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('customer_details', [
+            'kvk' => '82860734',
+            'company_name' => 'BoWiDo B.V.',
+            'billing_email' => 'new-kvk-customer@example.com',
+            'is_active' => true,
+        ]);
+        $this->assertDatabaseHas('users', [
+            'name' => 'BoWiDo B.V.',
+            'email' => 'new-kvk-customer@example.com',
+            'phone_number' => '+31612345678',
+            'is_active' => true,
+        ]);
+        Http::assertSent(fn ($request) => $request->hasHeader('apikey', 'test-kvk-key'));
+    }
+
+    public function test_kvk_registration_returns_the_lookup_error_when_a_new_customer_cannot_be_verified(): void
+    {
+        Http::fake(['api.test.kvk/*' => Http::response([], 503)]);
+
+        $this->postJson('/api/auth/kvk-register', [
+            'kvk' => '82860734',
+            'name' => 'BoWiDo B.V.',
+            'email' => 'new-kvk-customer@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])->assertStatus(503)
+            ->assertJsonPath('data', null);
+
+        $this->assertDatabaseMissing('customer_details', ['kvk' => '82860734']);
     }
 
     public function test_kvk_lookup_uses_the_first_main_branch_address_when_no_visit_address_exists(): void

@@ -14,6 +14,8 @@ class StoreServiceReportRequest extends ApiFormRequest
             'issue_type' => ['nullable', 'string', 'max:255'],
             'description' => ['required', 'string'],
             'image' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
+            'images' => ['nullable', 'array', 'max:10'],
+            'images.*' => ['image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
             'image_path' => ['nullable', 'string'],
             'metadata' => ['nullable', 'array'],
         ];

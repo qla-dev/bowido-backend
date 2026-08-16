@@ -33,6 +33,8 @@ class Pallet extends Model
         'current_location',
         'notes',
         'last_status_changed_at',
+        'customer_timer_started_at',
+        'customer_timer_frozen_at',
         'days_at_customer',
         'grace_days',
         'overdue_days',
@@ -48,6 +50,8 @@ class Pallet extends Model
     {
         return [
             'last_status_changed_at' => 'datetime',
+            'customer_timer_started_at' => 'datetime',
+            'customer_timer_frozen_at' => 'datetime',
             'days_at_customer' => 'integer',
             'grace_days' => 'integer',
             'overdue_days' => 'integer',

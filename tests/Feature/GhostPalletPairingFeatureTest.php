@@ -100,4 +100,31 @@ class GhostPalletPairingFeatureTest extends TestCase
         $this->assertNotEmpty($photo->content);
         $this->assertNull($photo->path);
     }
+
+    public function test_no_qr_pallet_can_be_deleted_with_its_report_only_records(): void
+    {
+        $admin = $this->makeUser('admin');
+        $customer = $this->makeUser('customer');
+
+        $report = $this->actingAs($admin, 'api')->post('/api/ghost_pallet_reports', [
+            'user_id' => $customer->id,
+            'quantity' => 1,
+            'location' => 'Loading dock',
+            'image' => UploadedFile::fake()->image('no-qr.jpg', 1000, 700),
+        ])->assertCreated();
+
+        $palletId = $report->json('data.pallets.0.id');
+        $reportId = $report->json('data.id');
+
+        $this->actingAs($admin, 'api')
+            ->deleteJson('/api/pallets/'.$palletId)
+            ->assertOk();
+
+        $this->assertDatabaseMissing('pallets', ['id' => $palletId]);
+        $this->assertDatabaseMissing('pallet_photos', ['pallet_id' => $palletId]);
+        $this->assertDatabaseHas('ghost_pallet_reports', [
+            'id' => $reportId,
+            'paired_pallet_id' => null,
+        ]);
+    }
 }

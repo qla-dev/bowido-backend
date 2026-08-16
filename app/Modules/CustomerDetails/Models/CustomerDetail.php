@@ -3,10 +3,12 @@
 namespace App\Modules\CustomerDetails\Models;
 
 use App\Modules\Users\Models\User;
+use App\Modules\Invoices\Models\Invoice;
 use Database\Factories\CustomerDetailFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CustomerDetail extends Model
 {
@@ -16,6 +18,7 @@ class CustomerDetail extends Model
     protected $fillable = [
         'user_id',
         'company_name',
+        'contact_person',
         'country',
         'street',
         'house_number',
@@ -57,6 +60,11 @@ class CustomerDetail extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(Invoice::class, 'user_id', 'user_id');
     }
 
     public function warehouseOneAddress(): ?string

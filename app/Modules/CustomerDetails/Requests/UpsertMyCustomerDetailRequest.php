@@ -18,9 +18,10 @@ class UpsertMyCustomerDetailRequest extends ApiFormRequest
 
         return [
             'company_name' => ['required', 'string', 'max:255'],
+            'contact_person' => ['nullable', 'string', 'max:255'],
             'kvk' => $kvkRules,
             'phone_number' => ['nullable', 'string', 'max:255'],
-            'fixed_phone' => ['required', 'string', 'max:50'],
+            'fixed_phone' => ['nullable', 'string', 'max:50'],
             'billing_email' => ['required', 'email', 'max:255'],
             'street' => ['required', 'string', 'max:255'],
             'house_number' => ['nullable', 'string', 'max:64'],

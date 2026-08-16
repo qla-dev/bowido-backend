@@ -9,6 +9,7 @@ use App\Modules\Pallets\Models\Pallet;
 use App\Modules\Users\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class DeliveryLocationService
 {
@@ -37,6 +38,14 @@ class DeliveryLocationService
 
         return DB::transaction(function () use ($pallet, $data, $actor, $latitude, $longitude, $address, $street, $houseNumber, $postalCode, $city, $formattedAddress): DeliveryLocation {
             $lockedPallet = Pallet::query()->lockForUpdate()->findOrFail($pallet->id);
+            $lockedPallet->loadMissing('currentStatus');
+
+            if ($lockedPallet->currentStatus?->slug === 'onbekend') {
+                throw ValidationException::withMessages([
+                    'location' => [__('Unknown pallets cannot have a location.')],
+                ]);
+            }
+
             $location = DeliveryLocation::query()->updateOrCreate(
                 ['pallet_id' => $lockedPallet->id],
                 [

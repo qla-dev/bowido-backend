@@ -10,10 +10,12 @@ use App\Modules\Auth\Support\AuthLoginLogger;
 use App\Modules\Roles\Models\Role;
 use App\Modules\Users\Models\User;
 use App\Modules\Users\Repositories\UserRepository;
+use App\Modules\Users\Services\CredentialDeliveryService;
+use App\Modules\Users\Support\TemporaryPasswordGenerator;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -30,11 +32,12 @@ class AuthService
     public function __construct(
         private readonly UserRepository $userRepository,
         private readonly ApiTokenRepository $apiTokenRepository,
-    ) {
-    }
+        private readonly TemporaryPasswordGenerator $passwordGenerator,
+        private readonly CredentialDeliveryService $credentialDeliveryService,
+    ) {}
 
     /**
-     * @return array{token: string, token_type: string, expires_at: string|null, session_expires_at: string|null, user: \App\Modules\Users\Models\User}
+     * @return array{token: string, token_type: string, expires_at: string|null, session_expires_at: string|null, user: User}
      */
     public function login(LoginData $data, Request $request): array
     {
@@ -151,7 +154,8 @@ class AuthService
         }
     }
 
-    public function register(RegisterData $data): User
+    /** @return array{user: User, email_sent: bool} */
+    public function register(RegisterData $data): array
     {
         $role = Role::query()
             ->whereKey($data->roleId)
@@ -164,14 +168,16 @@ class AuthService
             ]);
         }
 
-        return DB::transaction(function () use ($role, $data): User {
+        $temporaryPassword = $this->passwordGenerator->generate();
+        $user = DB::transaction(function () use ($role, $data, $temporaryPassword): User {
             /** @var User $user */
             $user = $this->userRepository->create([
                 'role_id' => $role->id,
                 'name' => $data->name,
                 'email' => $data->email,
                 'phone_number' => $data->phoneNumber,
-                'password' => $data->password,
+                'password' => $temporaryPassword,
+                'first_time_login' => true,
                 'is_active' => true,
             ]);
 
@@ -179,6 +185,16 @@ class AuthService
 
             return $user;
         });
+
+        $emailSent = true;
+        try {
+            $this->credentialDeliveryService->send($user, $temporaryPassword);
+        } catch (Throwable $exception) {
+            $emailSent = false;
+            report($exception);
+        }
+
+        return ['user' => $user, 'email_sent' => $emailSent];
     }
 
     public function logout(Request $request): void
@@ -229,7 +245,7 @@ class AuthService
     }
 
     /**
-     * @return array{token: string, expires_at: string|null, user: \App\Modules\Users\Models\User}
+     * @return array{token: string, expires_at: string|null, user: User}
      */
     private function issueToken(User $user, string $tokenName, string $traceId): array
     {

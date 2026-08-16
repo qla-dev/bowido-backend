@@ -11,9 +11,7 @@ readonly class RegisterData
         public string $name,
         public string $email,
         public ?string $phoneNumber,
-        public string $password,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>  $attributes
@@ -25,7 +23,6 @@ readonly class RegisterData
             name: trim((string) $attributes['name']),
             email: strtolower(trim((string) $attributes['email'])),
             phoneNumber: Normalizer::phoneNumber($attributes['phone_number'] ?? null),
-            password: (string) $attributes['password'],
         );
     }
 }

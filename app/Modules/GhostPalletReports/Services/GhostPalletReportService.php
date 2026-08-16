@@ -5,7 +5,6 @@ namespace App\Modules\GhostPalletReports\Services;
 use App\Modules\GhostPalletReports\DTOs\GhostPalletReportData;
 use App\Modules\GhostPalletReports\Models\GhostPalletReport;
 use App\Modules\GhostPalletReports\Repositories\GhostPalletReportRepository;
-use App\Modules\DeliveryLocations\Services\DeliveryLocationService;
 use App\Modules\PalletPhotos\Enums\PalletPhotoType;
 use App\Modules\PalletPhotos\Services\PalletPhotoService;
 use App\Modules\Pallets\Models\Pallet;
@@ -25,7 +24,6 @@ class GhostPalletReportService extends BaseCrudService
         private readonly PalletRepository $palletRepository,
         private readonly UserRepository $userRepository,
         private readonly PalletPhotoService $palletPhotoService,
-        private readonly DeliveryLocationService $deliveryLocationService,
     ) {
         parent::__construct($ghostPalletReportRepository);
     }
@@ -81,7 +79,10 @@ class GhostPalletReportService extends BaseCrudService
                     // null; the generated pallet name identifies the record.
                     'qr_code' => null,
                     'pallet_name' => $this->nextNoQrPalletName(),
-                    'current_location' => $entry['location'] ?? $data->location,
+                    // An unknown pallet deliberately has no operational
+                    // location. The report itself still retains where it was
+                    // found for follow-up purposes.
+                    'current_location' => null,
                     'notes' => $entry['note'] ?? $data->notes,
                     'is_ghost' => true,
                     'ghost_pallet_report_id' => $ghostPalletReport->id,
@@ -99,9 +100,6 @@ class GhostPalletReportService extends BaseCrudService
                     );
                 }
 
-                if (is_array($entry['delivery_location'] ?? null)) {
-                    $this->deliveryLocationService->upsert($pallet, $entry['delivery_location'], $actor);
-                }
             }
 
             // Keep the report linked to the first pallet in its batch. Every

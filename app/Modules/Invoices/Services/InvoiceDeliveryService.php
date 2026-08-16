@@ -16,7 +16,7 @@ class InvoiceDeliveryService
     public function recipientFor(User $customer): ?string
     {
         if (config('mail.force_to_colakovic')) {
-            return 'colakovic.vedad@qla.dev';
+            return (string) config('mail.force_to_address');
         }
 
         $customer->loadMissing('customerDetail');
@@ -41,9 +41,12 @@ class InvoiceDeliveryService
             'recipient' => $recipient,
         ]);
 
-        $pdf = $this->pdfService->render($invoice);
-        Mail::to($recipient)->send(new BowidoInvoiceMail($invoice, $pdf, $this->pdfService->filename($invoice)));
-        $invoice->forceFill(['status' => InvoiceStatus::Sent->value])->save();
+        $document = $this->pdfService->document($invoice);
+        Mail::to($recipient)->send(new BowidoInvoiceMail($invoice, $document['contents'], $document['filename']));
+        $invoice->forceFill([
+            'status' => InvoiceStatus::Sent->value,
+            'mailed_at' => now(),
+        ])->save();
 
         Log::info('Invoice email delivered.', [
             'source' => $source,

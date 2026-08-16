@@ -10,6 +10,7 @@
     "Logout successful.": "Uitloggen is geslaagd.",
     "Invalid credentials.": "Ongeldige inloggegevens.",
     "Email or password are incorrect.": "E-mail of wachtwoord is onjuist.",
+    "If an active account matches this email address, a new temporary password has been sent.": "Als een actief account overeenkomt met dit e-mailadres, is er een nieuw tijdelijk wachtwoord verstuurd.",
     "Selected role is invalid or inactive.": "De geselecteerde rol is ongeldig of inactief.",
     "Users retrieved successfully.": "Gebruikers succesvol opgehaald.",
     "User created successfully.": "Gebruiker succesvol aangemaakt.",
@@ -74,6 +75,7 @@
     "The selected user is not active.": "De geselecteerde gebruiker is niet actief.",
     "The selected customer must have active customer details.": "De geselecteerde klant moet actieve klantgegevens hebben.",
     "Storage billing for pallet :qr_code": "Opslagfacturatie voor pallet :qr_code",
+    "Overdue storage for pallet :qr_code": "Achterstallige opslag voor pallet :qr_code",
     "Invoice items must reference pallets owned by the invoiced user.": "Factuurregels moeten verwijzen naar pallets die eigendom zijn van de gefactureerde gebruiker.",
     "You are not allowed to create a report for this pallet.": "Je mag geen rapport voor deze pallet aanmaken.",
     "Resolved reports cannot be reopened through this endpoint.": "Opgeloste rapporten kunnen via dit endpoint niet opnieuw worden geopend.",
@@ -95,5 +97,14 @@
     "Dear customer,": "Beste klant,",
     "Your Bowido invoice :number is attached.": "Uw Bowido-factuur :number is bijgevoegd.",
     "Kind regards,": "Met vriendelijke groet,",
-    "The selected user must be a customer.": "De geselecteerde gebruiker moet een klant zijn."
+    "The selected user must be a customer.": "De geselecteerde gebruiker moet een klant zijn.",
+    ":actor admitted pallet to service.": ":actor heeft de bok aangemeld voor service.",
+    ":actor removed pallet from service.": ":actor heeft de bok uit service verwijderd.",
+    "Login details could not be sent.": "De inloggegevens konden niet worden verstuurd.",
+    "The user was created, but the login details email could not be sent. Use Send login details to try again.": "De gebruiker is aangemaakt, maar de e-mail met inloggegevens kon niet worden verstuurd. Gebruik Inloggegevens versturen om het opnieuw te proberen.",
+    "User created, but login details could not be sent.": "De gebruiker is aangemaakt, maar de inloggegevens konden niet worden verstuurd.",
+    "Login details sent successfully.": "De inloggegevens zijn succesvol verstuurd.",
+    "Some login details could not be sent.": "Niet alle inloggegevens konden worden verstuurd.",
+    "First-time login has already been completed.": "De eerste aanmelding is al voltooid.",
+    "Assigned password retained successfully.": "Het toegewezen wachtwoord is behouden."
 }

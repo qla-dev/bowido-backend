@@ -4,7 +4,6 @@ namespace App\Modules\PalletPhotos\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\URL;
 
 class PalletPhotoResource extends JsonResource
 {
@@ -21,6 +20,7 @@ class PalletPhotoResource extends JsonResource
             'service_report_id' => $this->service_report_id,
             'uploaded_by_user_id' => $this->uploaded_by_user_id,
             'type' => $this->type?->value,
+            'delivery_started_at' => $this->delivery_started_at,
             'warehouse_scope' => $this->warehouse_scope,
             'original_name' => $this->original_name,
             'mime_type' => $this->mime_type,
@@ -29,7 +29,7 @@ class PalletPhotoResource extends JsonResource
             'height' => $this->height,
             'expires_at' => $this->expires_at,
             'url' => $this->expires_at?->isFuture()
-                ? URL::temporarySignedRoute('pallet-photos.file', now()->addMinutes(config('pallet-photos.temporary_url_minutes')), ['palletPhoto' => $this->id])
+                ? route('pallet-photos.file', ['palletPhoto' => $this->id])
                 : null,
             'created_at' => $this->created_at,
             'status' => $photoStatus ? [

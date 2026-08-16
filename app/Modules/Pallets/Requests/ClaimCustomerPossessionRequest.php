@@ -10,7 +10,7 @@ class ClaimCustomerPossessionRequest extends ApiFormRequest
     {
         return [
             'current_status_id' => ['required', 'integer', 'exists:statuses,id'],
-            'current_location' => ['required', 'string', 'max:255'],
+            'current_location' => ['sometimes', 'nullable', 'string', 'max:255'],
         ];
     }
 }

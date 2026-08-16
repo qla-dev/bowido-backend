@@ -8,6 +8,11 @@ use App\Modules\Users\Models\User;
 
 class UserPolicy extends BaseModulePolicy
 {
+    public function distributeCredentials(User $user): bool
+    {
+        return $user->isAdmin();
+    }
+
     public function viewAny(User $user): bool
     {
         if ($user->isCustomer()) {

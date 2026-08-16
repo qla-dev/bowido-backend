@@ -7,6 +7,7 @@ readonly class CustomerDetailData
     public function __construct(
         public int $userId,
         public string $companyName,
+        public ?string $contactPerson,
         public ?string $country,
         public ?string $kvk,
         public ?string $billingEmail,
@@ -39,6 +40,7 @@ readonly class CustomerDetailData
         return new self(
             userId: (int) $attributes['user_id'],
             companyName: trim((string) $attributes['company_name']),
+            contactPerson: self::nullableString($attributes['contact_person'] ?? null),
             country: isset($attributes['country']) ? trim((string) $attributes['country']) : null,
             kvk: isset($attributes['kvk']) ? trim((string) $attributes['kvk']) : ($attributes['kvk_number'] ?? null),
             billingEmail: $attributes['billing_email'] ?? null,
@@ -72,6 +74,7 @@ readonly class CustomerDetailData
         return [
             'user_id' => $this->userId,
             'company_name' => $this->companyName,
+            'contact_person' => $this->contactPerson,
             'country' => $this->country,
             'kvk' => $this->kvk,
             'billing_email' => $this->billingEmail,
@@ -95,5 +98,12 @@ readonly class CustomerDetailData
             'notes' => $this->notes,
             'is_active' => $this->isActive,
         ];
+    }
+
+    private static function nullableString(mixed $value): ?string
+    {
+        $value = trim((string) $value);
+
+        return $value !== '' ? $value : null;
     }
 }

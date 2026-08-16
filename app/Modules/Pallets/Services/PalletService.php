@@ -7,11 +7,12 @@ use App\Modules\Pallets\DTOs\PalletData;
 use App\Modules\Pallets\Models\Pallet;
 use App\Modules\Pallets\Repositories\PalletRepository;
 use App\Modules\Pallets\Rules\PalletCustomerAssignmentRule;
-use App\Modules\Shared\Services\BaseCrudService;
-use App\Modules\Shared\Services\AuditTrailService;
-use App\Modules\Shared\Services\TrackableAssetService;
 use App\Modules\Shared\Enums\AuditEventType;
+use App\Modules\Shared\Services\AuditTrailService;
+use App\Modules\Shared\Services\BaseCrudService;
+use App\Modules\Shared\Services\TrackableAssetService;
 use App\Modules\Statuses\Repositories\StatusRepository;
+use App\Modules\Statuses\Models\Status;
 use App\Modules\Users\Models\User;
 use App\Modules\Users\Repositories\UserRepository;
 use Carbon\CarbonInterface;
@@ -21,7 +22,6 @@ use Illuminate\Validation\ValidationException;
 
 class PalletService extends BaseCrudService
 {
-
     public function __construct(
         private readonly PalletRepository $palletRepository,
         private readonly UserRepository $userRepository,
@@ -41,18 +41,17 @@ class PalletService extends BaseCrudService
         return DB::transaction(function () use ($data): Pallet {
             $attributes = $data->toArray();
             $attributes['user_id'] = $this->normalizedCustomerId($data);
-            $attributes['last_status_changed_at'] = now();
+            $changedAt = now();
+            $attributes['last_status_changed_at'] = $changedAt;
             $status = $this->statusRepository->findOrFail($data->currentStatusId);
+            $attributes = [...$attributes, ...$this->customerTimerAttributes(new Pallet, $status, $changedAt)];
 
             if (in_array($status->slug, ['bih-nl-transport', 'nl-bih-transport'], true)) {
                 $attributes['current_location'] = 'Na putu';
-            } elseif ($this->customerAssignmentRule->statusAllowsCustomer($status)) {
-                $customer = $data->userId
-                    ? User::query()->with('customerDetail')->find($data->userId)
-                    : null;
-                $attributes['current_location'] = $customer?->customerDetail?->warehouseOneAddress()
-                    ?? $customer?->customerDetail?->businessAddress()
-                    ?? '';
+            }
+
+            if ($this->isUnknownStatus($status)) {
+                $attributes['current_location'] = null;
             }
 
             /** @var Pallet $pallet */
@@ -80,26 +79,17 @@ class PalletService extends BaseCrudService
                 $attributes['current_location'] = 'Na putu';
             }
 
-            if ($this->customerAssignmentRule->statusAllowsCustomer($nextStatus)) {
-                $customer = $data->userId
-                    ? User::query()->with('customerDetail')->find($data->userId)
-                    : null;
-                $customerAddress = $customer?->customerDetail?->warehouseOneAddress()
-                    ?? $customer?->customerDetail?->businessAddress()
-                    ?? '';
-                $requestedLocation = trim((string) ($attributes['current_location'] ?? ''));
-                $deliveryAddress = $this->deliveryLocationAddress($lockedPallet);
-                $attributes['current_location'] = in_array($nextStatus->slug, ['bij-de-klant', 'ophalen-klant'], true)
-                    && $deliveryAddress !== null
-                    && $requestedLocation === $deliveryAddress
-                        ? $deliveryAddress
-                        : $customerAddress;
+            if ($this->isUnknownStatus($nextStatus)) {
+                $attributes['current_location'] = null;
+                $lockedPallet->deliveryLocation()->delete();
             }
 
             $overdueInvoiceData = $this->overdueInvoiceData($lockedPallet, $data->currentStatusId);
 
             if ((int) $originalAttributes['current_status_id'] !== $data->currentStatusId) {
-                $attributes['last_status_changed_at'] = now();
+                $changedAt = now();
+                $attributes['last_status_changed_at'] = $changedAt;
+                $attributes = [...$attributes, ...$this->customerTimerAttributes($lockedPallet, $nextStatus, $changedAt)];
             }
 
             /** @var Pallet $updatedPallet */
@@ -115,38 +105,7 @@ class PalletService extends BaseCrudService
             return $updatedPallet->load(['user.role', 'user.customerDetail', 'currentStatus', 'deliveryLocation']);
         });
 
-        if ($overdueInvoiceData !== null) {
-            try {
-                [, $customerSince, $graceDays, $overdueDays, $pricePerDay] = $overdueInvoiceData;
-                Log::info('Automatic overdue pallet invoice check started.', [
-                    'pallet_id' => $updatedPallet->id,
-                    'customer_since' => $customerSince->toDateString(),
-                    'grace_period_days' => $graceDays,
-                    'overdue_days' => $overdueDays,
-                    'price_per_day' => $pricePerDay,
-                ]);
-                $invoice = $this->overduePalletInvoiceService->generate($updatedPallet, ...$overdueInvoiceData);
-
-                if ($invoice !== null) {
-                    $recipient = $this->overduePalletInvoiceService->send($invoice);
-                    Log::info('Automatic overdue pallet invoice delivered.', [
-                        'pallet_id' => $updatedPallet->id,
-                        'invoice_id' => $invoice->id,
-                        'invoice_number' => $invoice->invoice_number,
-                        'recipient' => $recipient,
-                    ]);
-                } else {
-                    Log::warning('Automatic overdue pallet invoice skipped: no valid recipient or positive rate.', [
-                        'pallet_id' => $updatedPallet->id,
-                    ]);
-                }
-            } catch (\Throwable $exception) {
-                Log::error('Unable to deliver automatic overdue pallet invoice.', [
-                    'pallet_id' => $updatedPallet->id,
-                    'exception' => $exception,
-                ]);
-            }
-        }
+        $this->createAutomaticOverdueInvoice($updatedPallet, $overdueInvoiceData);
 
         return $updatedPallet;
     }
@@ -155,6 +114,14 @@ class PalletService extends BaseCrudService
     {
         return DB::transaction(function () use ($pallet, $location, $actor): Pallet {
             $lockedPallet = $this->palletRepository->lockForUpdate($pallet->id);
+            $lockedPallet->loadMissing('currentStatus');
+
+            if ($this->isUnknownStatus($lockedPallet->currentStatus)) {
+                throw ValidationException::withMessages([
+                    'current_location' => [__('Unknown pallets cannot have a location.')],
+                ]);
+            }
+
             $originalAttributes = $lockedPallet->only(['user_id', 'current_status_id', 'current_location', 'qr_code']);
             $attributes = ['current_location' => trim($location)];
 
@@ -182,19 +149,35 @@ class PalletService extends BaseCrudService
                 return $lockedPallet->load(['user.role', 'user.customerDetail', 'currentStatus', 'deliveryLocation']);
             }
 
+            $actorName = trim((string) ($actor->name ?: $actor->email));
+            // Keep the pallet note canonical; the frontend translates it for the currently selected language.
+            $serviceNote = $isForRepair
+                ? "{$actorName} admitted pallet to service."
+                : "{$actorName} removed pallet from service.";
+            $auditNote = $isForRepair
+                ? __(':actor admitted pallet to service.', ['actor' => $actorName])
+                : __(':actor removed pallet from service.', ['actor' => $actorName]);
+            $existingNotes = preg_split('/\R/', trim((string) $lockedPallet->notes)) ?: [];
+            $notes = implode("\n", array_slice(array_filter([
+                $serviceNote,
+                ...$existingNotes,
+            ], static fn (string $note): bool => trim($note) !== ''), 0, 1));
+
             /** @var Pallet $updatedPallet */
             $updatedPallet = $this->palletRepository->update($lockedPallet, [
                 'is_for_repair' => $isForRepair,
+                'notes' => $notes,
             ]);
 
             $this->auditTrailService->record(
                 palletId: $updatedPallet->id,
                 madeByUserId: $actor->id,
                 eventType: AuditEventType::RepairStatusChanged,
-                note: $isForRepair ? __('Pallet marked for repair.') : __('Pallet unmarked for repair.'),
+                note: $auditNote,
                 context: [
                     'old_is_for_repair' => $wasForRepair,
                     'new_is_for_repair' => $isForRepair,
+                    'actor_name' => $actorName,
                 ],
             );
 
@@ -212,10 +195,15 @@ class PalletService extends BaseCrudService
             ]);
         }
 
-        return DB::transaction(function () use ($pallet, $statusId, $actor, $location): Pallet {
+        $overdueInvoiceData = null;
+
+        $updatedPallet = DB::transaction(function () use ($pallet, $statusId, $nextStatus, $actor, $location, &$overdueInvoiceData): Pallet {
             $lockedPallet = $this->palletRepository->lockForUpdate($pallet->id);
+            $lockedPallet->loadMissing(['user.customerDetail', 'currentStatus']);
             $originalAttributes = $lockedPallet->only(['user_id', 'current_status_id', 'current_location', 'qr_code']);
             $requestedLocation = trim((string) $location);
+            $statusChanged = (int) $lockedPallet->current_status_id !== $statusId;
+            $overdueInvoiceData = $this->overdueInvoiceData($lockedPallet, $statusId);
             $attributes = [
                 'user_id' => $lockedPallet->user_id,
                 'current_status_id' => $statusId,
@@ -224,8 +212,10 @@ class PalletService extends BaseCrudService
                     : $lockedPallet->current_location,
             ];
 
-            if ((int) $lockedPallet->current_status_id !== $statusId) {
-                $attributes['last_status_changed_at'] = now();
+            if ($statusChanged) {
+                $changedAt = now();
+                $attributes['last_status_changed_at'] = $changedAt;
+                $attributes = [...$attributes, ...$this->customerTimerAttributes($lockedPallet, $nextStatus, $changedAt)];
             }
 
             /** @var Pallet $updatedPallet */
@@ -240,13 +230,17 @@ class PalletService extends BaseCrudService
 
             return $updatedPallet->load(['user.role', 'user.customerDetail', 'currentStatus', 'deliveryLocation']);
         });
+
+        $this->createAutomaticOverdueInvoice($updatedPallet, $overdueInvoiceData);
+
+        return $updatedPallet;
     }
 
     public function claimCustomerPossession(
         Pallet $pallet,
         User $customer,
         int $statusId,
-        string $location,
+        ?string $location,
     ): Pallet {
         $status = $this->statusRepository->findOrFail($statusId);
 
@@ -258,18 +252,24 @@ class PalletService extends BaseCrudService
 
         return DB::transaction(function () use ($pallet, $customer, $status, $location): Pallet {
             $lockedPallet = $this->palletRepository->lockForUpdate($pallet->id);
+            $changedAt = now();
+            $trimmedLocation = $location === null ? null : trim($location);
+            $nextLocation = filled($trimmedLocation)
+                ? $trimmedLocation
+                : $lockedPallet->current_location;
             $lockedPallet->update([
                 'user_id' => $customer->id,
                 'current_status_id' => $status->id,
-                'current_location' => trim($location),
-                'last_status_changed_at' => now(),
+                'current_location' => $nextLocation,
+                'last_status_changed_at' => $changedAt,
+                ...$this->customerTimerAttributes($lockedPallet, $status, $changedAt),
             ]);
 
             Log::info('Customer claimed pallet possession.', [
                 'pallet_id' => $lockedPallet->id,
                 'customer_id' => $customer->id,
                 'status_id' => $status->id,
-                'location' => trim($location),
+                'location' => $nextLocation,
             ]);
 
             return $lockedPallet->fresh(['user.customerDetail', 'currentStatus', 'deliveryLocation']);
@@ -281,6 +281,12 @@ class PalletService extends BaseCrudService
         /** @var Pallet $pallet */
         $pallet = $this->palletRepository->findOrFail($id, $actor);
 
+        if ($pallet->is_ghost) {
+            $this->deleteNoQrPallet($pallet);
+
+            return;
+        }
+
         if ($this->palletRepository->hasLinkedRecords($pallet)) {
             throw ValidationException::withMessages([
                 'pallet' => [__('Pallets with linked history, reports, no-QR pairings, or invoice items cannot be deleted.')],
@@ -288,6 +294,32 @@ class PalletService extends BaseCrudService
         }
 
         $this->palletRepository->delete($pallet);
+    }
+
+    /**
+     * No-QR pallets are temporary return/report records. Unlike tracked
+     * pallets, their report photo, delivery location, and audit trail belong
+     * exclusively to the record being removed and must not prevent a return.
+     */
+    private function deleteNoQrPallet(Pallet $pallet): void
+    {
+        if ($pallet->serviceReports()->exists() || $pallet->invoiceItems()->exists()) {
+            throw ValidationException::withMessages([
+                'pallet' => [__('Pallets with linked service reports or invoice items cannot be deleted.')],
+            ]);
+        }
+
+        DB::transaction(function () use ($pallet): void {
+            $lockedPallet = $this->palletRepository->lockForUpdate($pallet->id);
+
+            $lockedPallet->photos()->delete();
+            $lockedPallet->deliveryLocation()->delete();
+            $lockedPallet->auditLogs()->delete();
+
+            // ghost_pallet_reports.paired_pallet_id is null-on-delete, so the
+            // report stays available while its removed pallet link is cleared.
+            $this->palletRepository->delete($lockedPallet);
+        });
     }
 
     private function ensureDependenciesAreActive(PalletData $data): void
@@ -325,19 +357,44 @@ class PalletService extends BaseCrudService
         return $this->customerAssignmentRule->statusAllowsCustomer($status) ? $data->userId : null;
     }
 
-    private function deliveryLocationAddress(Pallet $pallet): ?string
+    private function isUnknownStatus(?Status $status): bool
     {
-        $location = $pallet->deliveryLocation;
+        return $status?->slug === 'onbekend';
+    }
 
-        if ($location === null) {
-            return null;
+    /**
+     * The return and deadline counters measure one customer possession period.
+     * Once a customer requests pickup, preserve both its start and finish so
+     * later reads cannot keep increasing the counter from the new status date.
+     *
+     * @return array<string, CarbonInterface|null>
+     */
+    private function customerTimerAttributes(Pallet $pallet, Status $nextStatus, CarbonInterface $changedAt): array
+    {
+        $currentSlug = $pallet->currentStatus?->slug;
+
+        if (
+            $this->customerAssignmentRule->isAtCustomer($nextStatus)
+            && ! $this->customerAssignmentRule->isAtCustomer($currentSlug)
+        ) {
+            return [
+                'customer_timer_started_at' => $changedAt,
+                'customer_timer_frozen_at' => null,
+            ];
         }
 
-        $streetLine = trim(implode(' ', array_filter([$location->street, $location->house_number])));
-        $localityLine = trim(implode(' ', array_filter([$location->postal_code, $location->city])));
-        $structuredAddress = implode(', ', array_filter([$streetLine, $localityLine]));
+        if (
+            $this->customerAssignmentRule->isAtCustomer($currentSlug)
+            && $this->customerAssignmentRule->isCustomerPickup($nextStatus)
+        ) {
+            return [
+                // Legacy pallets did not yet have a dedicated start time.
+                'customer_timer_started_at' => $pallet->customer_timer_started_at ?? $pallet->last_status_changed_at ?? $changedAt,
+                'customer_timer_frozen_at' => $changedAt,
+            ];
+        }
 
-        return $structuredAddress !== '' ? $structuredAddress : $location->formatted_address;
+        return [];
     }
 
     /**
@@ -345,9 +402,11 @@ class PalletService extends BaseCrudService
      */
     private function overdueInvoiceData(Pallet $pallet, int $nextStatusId): ?array
     {
+        $nextStatus = $this->statusRepository->findOrFail($nextStatusId);
+
         if (
-            $pallet->currentStatus?->slug !== 'bij-de-klant'
-            || $pallet->current_status_id === $nextStatusId
+            ! $this->customerAssignmentRule->isAtCustomer($pallet->currentStatus)
+            || ! $this->customerAssignmentRule->isCustomerPickup($nextStatus)
             || ! $pallet->user instanceof User
             || ! $pallet->last_status_changed_at
         ) {
@@ -365,5 +424,44 @@ class PalletService extends BaseCrudService
         $pricePerDay = (float) ($pallet->user->customerDetail?->default_price_per_day ?? $pallet->currentStatus->price_per_day ?? 0);
 
         return [$pallet->user, $pallet->last_status_changed_at, $graceDays, $overdueDays, $pricePerDay];
+    }
+
+    /**
+     * @param  array{0: User, 1: CarbonInterface, 2: int, 3: int, 4: float}|null  $overdueInvoiceData
+     */
+    private function createAutomaticOverdueInvoice(Pallet $pallet, ?array $overdueInvoiceData): void
+    {
+        if ($overdueInvoiceData === null) {
+            return;
+        }
+
+        try {
+            [, $customerSince, $graceDays, $overdueDays, $pricePerDay] = $overdueInvoiceData;
+            Log::info('Automatic monthly pallet invoice creation started.', [
+                'pallet_id' => $pallet->id,
+                'customer_since' => $customerSince->toDateString(),
+                'grace_period_days' => $graceDays,
+                'overdue_days' => $overdueDays,
+                'price_per_day' => $pricePerDay,
+            ]);
+            $invoice = $this->overduePalletInvoiceService->generate($pallet, ...$overdueInvoiceData);
+
+            if ($invoice !== null) {
+                Log::info('Automatic pallet invoice row saved on the customer monthly invoice.', [
+                    'pallet_id' => $pallet->id,
+                    'invoice_id' => $invoice->id,
+                    'invoice_number' => $invoice->invoice_number,
+                ]);
+            } else {
+                Log::warning('Automatic monthly pallet invoice skipped: no overdue amount or daily rate.', [
+                    'pallet_id' => $pallet->id,
+                ]);
+            }
+        } catch (\Throwable $exception) {
+            Log::error('Unable to create automatic monthly pallet invoice.', [
+                'pallet_id' => $pallet->id,
+                'exception' => $exception,
+            ]);
+        }
     }
 }

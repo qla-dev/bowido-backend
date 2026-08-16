@@ -6,7 +6,9 @@ use App\Modules\Invoices\Models\Invoice;
 use App\Modules\Pallets\Models\Pallet;
 use App\Modules\Shared\Enums\InvoiceStatus;
 use App\Modules\Users\Models\User;
+use Carbon\Carbon;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -21,49 +23,223 @@ class OverduePalletInvoiceService
         int $graceDays,
         int $overdueDays,
         float $pricePerDay,
+        ?CarbonInterface $billedThrough = null,
     ): ?Invoice {
-        if ($overdueDays <= 0 || $pricePerDay <= 0 || $this->deliveryService->recipientFor($customer) === null) {
+        if ($overdueDays <= 0 || $pricePerDay <= 0) {
             return null;
         }
 
-        return DB::transaction(function () use ($pallet, $customer, $customerSince, $graceDays, $overdueDays, $pricePerDay): Invoice {
-            $periodStart = $customerSince->copy()->startOfDay()->addDays($graceDays + 1);
-            $periodEnd = now()->startOfDay();
+        $billingDate = Carbon::parse($billedThrough ?? now())->startOfDay();
+        $invoicePeriodStart = $billingDate->copy()->startOfMonth();
+        $invoicePeriodEnd = $billingDate->copy()->endOfMonth()->startOfDay();
+        $firstOverdueDate = Carbon::parse($customerSince)->startOfDay()->addDays(max(0, $graceDays) + 1);
+        $itemPeriodStart = $firstOverdueDate->copy()->max($invoicePeriodStart);
+        $itemPeriodEnd = $billingDate->copy()->min($invoicePeriodEnd);
+
+        if ($itemPeriodStart->gt($itemPeriodEnd)) {
+            return null;
+        }
+
+        $billedDays = $itemPeriodStart->diffInDays($itemPeriodEnd) + 1;
+
+        return DB::transaction(function () use ($pallet, $customer, $customerSince, $graceDays, $pricePerDay, $invoicePeriodStart, $invoicePeriodEnd, $itemPeriodStart, $itemPeriodEnd, $billedDays): Invoice {
+            // Locking the customer serializes invoice creation for this customer,
+            // including the case where the monthly invoice does not exist yet.
+            User::query()->whereKey($customer->id)->lockForUpdate()->firstOrFail();
+
             $priceCents = (int) round($pricePerDay * 100);
-            $amountCents = $overdueDays * $priceCents;
+            $amountCents = $billedDays * $priceCents;
 
-            $invoice = Invoice::query()->create([
-                'user_id' => $customer->id,
-                'invoice_number' => sprintf('INV-OVD-%s-%04d', now()->format('Ymd'), Invoice::query()->whereDate('created_at', now()->toDateString())->count() + 1),
-                'status' => InvoiceStatus::Issued->value,
-                'currency' => 'EUR',
-                'period_start' => $periodStart->toDateString(),
-                'period_end' => $periodEnd->toDateString(),
-                'issued_at' => now(),
-                'due_at' => now()->addDays(14)->toDateString(),
-                'subtotal_amount' => number_format($amountCents / 100, 2, '.', ''),
-                'total_amount' => number_format($amountCents / 100, 2, '.', ''),
-                'notes' => __('Automatically created when the overdue pallet left the customer.'),
-            ]);
+            $monthlyInvoices = Invoice::query()
+                ->where('user_id', $customer->id)
+                ->where(function ($query) use ($invoicePeriodStart, $invoicePeriodEnd): void {
+                    $query
+                        ->where(function ($periodQuery) use ($invoicePeriodStart, $invoicePeriodEnd): void {
+                            $periodQuery
+                                ->whereDate('period_start', $invoicePeriodStart->toDateString())
+                                ->whereDate('period_end', $invoicePeriodEnd->toDateString());
+                        })
+                        ->orWhere(function ($legacyQuery) use ($invoicePeriodStart, $invoicePeriodEnd): void {
+                            $legacyQuery
+                                ->where('invoice_number', 'like', 'INV-OVD-%')
+                                ->where('created_at', '>=', $invoicePeriodStart)
+                                ->where('created_at', '<=', $invoicePeriodEnd->copy()->endOfDay());
+                        });
+                })
+                ->with('items')
+                ->orderBy('created_at')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
 
-            $invoice->items()->create([
-                'pallet_id' => $pallet->id,
+            $invoice = $monthlyInvoices->first();
+
+            if (! $invoice instanceof Invoice) {
+                $invoice = Invoice::query()->create([
+                    'user_id' => $customer->id,
+                    'invoice_number' => $this->nextInvoiceNumber(),
+                    'status' => InvoiceStatus::Issued->value,
+                    'currency' => 'EUR',
+                    'period_start' => $invoicePeriodStart->toDateString(),
+                    'period_end' => $invoicePeriodEnd->toDateString(),
+                    'issued_at' => now(),
+                    'due_at' => $invoicePeriodEnd->copy()->addDays(14)->toDateString(),
+                    'subtotal_amount' => 0,
+                    'total_amount' => 0,
+                    'notes' => __('Automatically created for overdue pallet storage during this calendar month.'),
+                ]);
+            } else {
+                $this->mergeMonthlyDuplicates($invoice, $monthlyInvoices->skip(1));
+                $invoice->forceFill([
+                    'period_start' => $invoicePeriodStart->toDateString(),
+                    'period_end' => $invoicePeriodEnd->toDateString(),
+                ])->save();
+            }
+
+            $invoice->items()->updateOrCreate(['pallet_id' => $pallet->id], [
                 'description' => __('Overdue storage for pallet :qr_code', ['qr_code' => $pallet->qr_code]),
-                'period_start' => $periodStart->toDateString(),
-                'period_end' => $periodEnd->toDateString(),
-                'billed_days' => $overdueDays,
+                'period_start' => $itemPeriodStart->toDateString(),
+                'period_end' => $itemPeriodEnd->toDateString(),
+                'billed_days' => $billedDays,
                 'price_per_day' => number_format($priceCents / 100, 2, '.', ''),
                 'amount' => number_format($amountCents / 100, 2, '.', ''),
                 'metadata' => [
                     'automatic_overdue_invoice' => true,
                     'customer_since' => $customerSince->toDateString(),
                     'grace_period_days' => $graceDays,
-                    'overdue_days' => $overdueDays,
+                    'overdue_days' => $billedDays,
+                    'billing_month' => $invoicePeriodStart->format('Y-m'),
                 ],
             ]);
 
+            $totalCents = $invoice->items()
+                ->get(['amount'])
+                ->sum(fn ($item): int => (int) round((float) $item->amount * 100));
+
+            $invoice->forceFill([
+                'subtotal_amount' => number_format($totalCents / 100, 2, '.', ''),
+                'total_amount' => number_format($totalCents / 100, 2, '.', ''),
+            ])->save();
+
             return $invoice->load(['user.customerDetail', 'items.pallet']);
         });
+    }
+
+    /**
+     * Create or update one invoice per customer for pallets that are still
+     * overdue at the customer during the requested calendar month.
+     *
+     * @return Collection<int, Invoice>
+     */
+    public function generateForMonth(CarbonInterface $month): Collection
+    {
+        $periodEnd = Carbon::parse($month)->endOfMonth()->startOfDay();
+        $invoices = collect();
+
+        Pallet::query()
+            ->whereNotNull('user_id')
+            ->whereNotNull('last_status_changed_at')
+            ->where('last_status_changed_at', '<=', $periodEnd->copy()->endOfDay())
+            ->whereHas('currentStatus', fn ($query) => $query->where('slug', 'bij-de-klant'))
+            ->with(['user.customerDetail', 'currentStatus'])
+            ->orderBy('id')
+            ->chunkById(500, function ($pallets) use ($periodEnd, $invoices): void {
+                foreach ($pallets as $pallet) {
+                    if (! $pallet->user instanceof User || ! $pallet->last_status_changed_at) {
+                        continue;
+                    }
+
+                    $graceDays = $pallet->user->customerDetail?->grace_period_days
+                        ?? $pallet->currentStatus?->grace_period_days
+                        ?? 0;
+                    $overdueDays = max(
+                        0,
+                        $pallet->last_status_changed_at->copy()->startOfDay()->diffInDays($periodEnd) - $graceDays,
+                    );
+                    $pricePerDay = (float) ($pallet->user->customerDetail?->default_price_per_day
+                        ?? $pallet->currentStatus?->price_per_day
+                        ?? 0);
+
+                    $invoice = $this->generate(
+                        pallet: $pallet,
+                        customer: $pallet->user,
+                        customerSince: $pallet->last_status_changed_at,
+                        graceDays: $graceDays,
+                        overdueDays: $overdueDays,
+                        pricePerDay: $pricePerDay,
+                        billedThrough: $periodEnd,
+                    );
+
+                    if ($invoice instanceof Invoice) {
+                        $invoices->put($invoice->id, $invoice);
+                    }
+                }
+            });
+
+        return $invoices->values();
+    }
+
+    /**
+     * @param  Collection<int, Invoice>  $duplicates
+     */
+    private function mergeMonthlyDuplicates(Invoice $invoice, Collection $duplicates): void
+    {
+        foreach ($duplicates as $duplicate) {
+            foreach ($duplicate->items as $duplicateItem) {
+                $existingItem = $invoice->items()->where('pallet_id', $duplicateItem->pallet_id)->first();
+
+                if ($existingItem === null) {
+                    $duplicateItem->forceFill(['invoice_id' => $invoice->id])->save();
+
+                    continue;
+                }
+
+                if ($duplicateItem->billed_days > $existingItem->billed_days) {
+                    $existingItem->fill($duplicateItem->only([
+                        'description',
+                        'period_start',
+                        'period_end',
+                        'billed_days',
+                        'price_per_day',
+                        'amount',
+                        'metadata',
+                    ]))->save();
+                }
+
+                $duplicateItem->delete();
+            }
+
+            if ($this->statusRank($duplicate->status) > $this->statusRank($invoice->status)) {
+                $invoice->status = $duplicate->status;
+            }
+
+            $invoice->mailed_at = collect([$invoice->mailed_at, $duplicate->mailed_at])->filter()->max();
+            $invoice->paid_at = collect([$invoice->paid_at, $duplicate->paid_at])->filter()->max();
+            $invoice->save();
+            $duplicate->delete();
+        }
+    }
+
+    private function statusRank(string $status): int
+    {
+        return match ($status) {
+            InvoiceStatus::Paid->value => 4,
+            InvoiceStatus::Sent->value => 3,
+            InvoiceStatus::Issued->value => 2,
+            InvoiceStatus::Draft->value => 1,
+            default => 0,
+        };
+    }
+
+    private function nextInvoiceNumber(): string
+    {
+        $datePrefix = now()->format('Ymd');
+        $sequence = Invoice::query()
+            ->whereDate('created_at', now()->toDateString())
+            ->lockForUpdate()
+            ->count() + 1;
+
+        return sprintf('INV-OVD-%s-%04d', $datePrefix, $sequence);
     }
 
     public function send(Invoice $invoice, string $source = 'automatic_overdue_pallet'): string
@@ -98,8 +274,7 @@ class OverduePalletInvoiceService
             'price_per_day' => $pricePerDay,
         ]);
 
-        $invoice = $this->pendingAutomaticInvoiceFor($pallet)
-            ?? $this->generate($pallet, $pallet->user, $customerSince, $graceDays, $overdueDays, $pricePerDay);
+        $invoice = $this->generate($pallet, $pallet->user, $customerSince, $graceDays, $overdueDays, $pricePerDay);
 
         if ($invoice === null) {
             Log::warning('Dashboard overdue invoice was not sent: no valid recipient, overdue amount, or rate.', [
@@ -136,19 +311,5 @@ class OverduePalletInvoiceService
         ]);
 
         return ['invoice' => $invoice, 'recipient' => $recipient];
-    }
-
-    private function pendingAutomaticInvoiceFor(Pallet $pallet): ?Invoice
-    {
-        return Invoice::query()
-            ->where('status', InvoiceStatus::Issued->value)
-            ->whereHas('items', fn ($query) => $query->where('pallet_id', $pallet->id))
-            ->with(['user.customerDetail', 'items.pallet'])
-            ->latest('id')
-            ->get()
-            ->first(fn (Invoice $invoice): bool => $invoice->items->contains(
-                fn ($item): bool => $item->pallet_id === $pallet->id
-                    && ($item->metadata['automatic_overdue_invoice'] ?? false) === true
-            ));
     }
 }

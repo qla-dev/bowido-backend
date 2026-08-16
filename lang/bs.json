@@ -10,6 +10,7 @@
     "Logout successful.": "Odjava je uspješna.",
     "Invalid credentials.": "Neispravni pristupni podaci.",
     "Email or password are incorrect.": "Email ili lozinka nisu ispravni.",
+    "If an active account matches this email address, a new temporary password has been sent.": "Ako postoji aktivan račun s ovom e-mail adresom, poslana je nova privremena lozinka.",
     "Selected role is invalid or inactive.": "Odabrana rola je neispravna ili neaktivna.",
     "Users retrieved successfully.": "Korisnici su uspješno dohvaćeni.",
     "User created successfully.": "Korisnik je uspješno kreiran.",
@@ -74,6 +75,7 @@
     "The selected user is not active.": "Odabrani korisnik nije aktivan.",
     "The selected customer must have active customer details.": "Odabrani klijent mora imati aktivne podatke o klijentu.",
     "Storage billing for pallet :qr_code": "Obračun skladištenja za paletu :qr_code",
+    "Overdue storage for pallet :qr_code": "Dospjeli obračun skladištenja za paletu :qr_code",
     "Invoice items must reference pallets owned by the invoiced user.": "Stavke fakture moraju se odnositi na palete koje pripadaju fakturisanom korisniku.",
     "You are not allowed to create a report for this pallet.": "Nije vam dozvoljeno da kreirate izvještaj za ovu paletu.",
     "Resolved reports cannot be reopened through this endpoint.": "Riješeni izvještaji se ne mogu ponovo otvoriti kroz ovaj endpoint.",
@@ -95,5 +97,14 @@
     "Dear customer,": "Poštovani klijente,",
     "Your Bowido invoice :number is attached.": "Vaša Bowido faktura :number nalazi se u prilogu.",
     "Kind regards,": "Srdačan pozdrav,",
-    "The selected user must be a customer.": "Odabrani korisnik mora biti klijent."
+    "The selected user must be a customer.": "Odabrani korisnik mora biti klijent.",
+    ":actor admitted pallet to service.": ":actor je prijavio paletu u servis.",
+    ":actor removed pallet from service.": ":actor je uklonio paletu iz servisa.",
+    "Login details could not be sent.": "Podaci za prijavu nisu mogli biti poslani.",
+    "The user was created, but the login details email could not be sent. Use Send login details to try again.": "Korisnik je kreiran, ali e-mail s podacima za prijavu nije mogao biti poslan. Koristite opciju Pošalji podatke za prijavu da pokušate ponovo.",
+    "User created, but login details could not be sent.": "Korisnik je kreiran, ali podaci za prijavu nisu mogli biti poslani.",
+    "Login details sent successfully.": "Podaci za prijavu su uspješno poslani.",
+    "Some login details could not be sent.": "Nisu svi podaci za prijavu mogli biti poslani.",
+    "First-time login has already been completed.": "Prva prijava je već završena.",
+    "Assigned password retained successfully.": "Dodijeljena lozinka je zadržana."
 }

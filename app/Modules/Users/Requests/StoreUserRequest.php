@@ -38,10 +38,13 @@ class StoreUserRequest extends ApiFormRequest
             'name' => ['required', 'string', 'max:255'],
             'email' => $emailRules,
             'phone_number' => ['nullable', 'string', 'max:255', 'unique:users,phone_number'],
-            'password' => ['required', 'string', 'min:8'],
+            // Accepted for backwards compatibility, but creation always replaces it
+            // with a server-generated temporary password.
+            'password' => ['sometimes', 'nullable', 'string'],
             'is_active' => ['sometimes', 'boolean'],
             'customer_details' => ['sometimes', 'array'],
             'customer_details.company_name' => ['required_with:customer_details', 'string', 'max:255'],
+            'customer_details.contact_person' => ['nullable', 'string', 'max:255'],
             'customer_details.country' => ['nullable', 'string', 'max:255'],
             'customer_details.kvk' => $kvkRules,
             'customer_details.billing_email' => ['nullable', 'email', 'max:255'],
