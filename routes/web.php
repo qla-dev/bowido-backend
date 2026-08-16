@@ -29,7 +29,22 @@ $serveFrontendFile = static function (string $relativePath) use ($frontendDist) 
         404,
     );
 
-    return response()->file($filePath);
+    $response = response()->file($filePath);
+
+    // The HTML document is the pointer to Vite's fingerprinted JS/CSS files.
+    // It must be revalidated on a normal browser reload; otherwise a phone can
+    // keep serving an older document that still references a previous bundle
+    // until the user performs a hard refresh. Fingerprinted assets themselves
+    // remain safe to cache because their names change for every build.
+    if ($relativePath === 'index.html') {
+        return $response->header('Cache-Control', 'no-cache, must-revalidate');
+    }
+
+    if (str_starts_with(str_replace('\\', '/', $relativePath), 'assets/')) {
+        return $response->header('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+
+    return $response;
 };
 
 $proxyFrontendDevServer = static function (Request $request) {
