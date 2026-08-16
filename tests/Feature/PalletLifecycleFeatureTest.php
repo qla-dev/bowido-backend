@@ -167,6 +167,41 @@ class PalletLifecycleFeatureTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_changing_only_the_customer_restarts_the_return_and_deadline_timer(): void
+    {
+        $admin = $this->makeUser('admin');
+        $originalCustomer = $this->makeUser('customer');
+        $newCustomer = $this->makeUser('customer');
+        $atCustomer = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $pallet = Pallet::factory()->create([
+            'user_id' => $originalCustomer->id,
+            'current_status_id' => $atCustomer->id,
+            'last_status_changed_at' => Carbon::parse('2026-08-01 09:00:00'),
+            'customer_timer_started_at' => Carbon::parse('2026-08-01 09:00:00'),
+            'customer_timer_frozen_at' => null,
+        ]);
+
+        Carbon::setTestNow('2026-08-16 11:45:00');
+
+        try {
+            $this->actingAs($admin, 'api')
+                ->putJson('/api/pallets/'.$pallet->id, [
+                    'user_id' => $newCustomer->id,
+                ])
+                ->assertOk()
+                ->assertJsonPath('data.user_id', $newCustomer->id)
+                ->assertJsonPath('data.current_status_id', $atCustomer->id);
+
+            $pallet->refresh();
+
+            $this->assertTrue($pallet->last_status_changed_at->equalTo(now()));
+            $this->assertTrue($pallet->customer_timer_started_at->equalTo(now()));
+            $this->assertNull($pallet->customer_timer_frozen_at);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
     public function test_unknown_pallets_always_have_no_location_and_cannot_be_given_one(): void
     {
         $admin = $this->makeUser('admin');

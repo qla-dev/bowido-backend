@@ -74,6 +74,8 @@ class PalletService extends BaseCrudService
             $attributes = $data->toArray();
             $attributes['user_id'] = $this->normalizedCustomerId($data);
             $nextStatus = $this->statusRepository->findOrFail($data->currentStatusId);
+            $statusChanged = (int) $originalAttributes['current_status_id'] !== $data->currentStatusId;
+            $customerChanged = (int) ($originalAttributes['user_id'] ?? 0) !== (int) ($attributes['user_id'] ?? 0);
 
             if (in_array($nextStatus->slug, ['bih-nl-transport', 'nl-bih-transport'], true)) {
                 $attributes['current_location'] = 'Na putu';
@@ -86,10 +88,19 @@ class PalletService extends BaseCrudService
 
             $overdueInvoiceData = $this->overdueInvoiceData($lockedPallet, $data->currentStatusId);
 
-            if ((int) $originalAttributes['current_status_id'] !== $data->currentStatusId) {
+            if ($statusChanged) {
                 $changedAt = now();
                 $attributes['last_status_changed_at'] = $changedAt;
                 $attributes = [...$attributes, ...$this->customerTimerAttributes($lockedPallet, $nextStatus, $changedAt)];
+            } elseif ($customerChanged && $this->customerAssignmentRule->isAtCustomer($nextStatus)) {
+                // Assigning a different customer while the pallet is already
+                // at a customer starts a new possession period. This refreshes
+                // the return-by and deadline calculations using that client's
+                // grace period without requiring a redundant status change.
+                $changedAt = now();
+                $attributes['last_status_changed_at'] = $changedAt;
+                $attributes['customer_timer_started_at'] = $changedAt;
+                $attributes['customer_timer_frozen_at'] = null;
             }
 
             /** @var Pallet $updatedPallet */
