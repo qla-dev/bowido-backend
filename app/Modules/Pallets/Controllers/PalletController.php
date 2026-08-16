@@ -75,6 +75,7 @@ class PalletController extends ApiController
         $updatedPallet = $this->palletService->updateCurrentLocation(
             $pallet,
             $request->validated('current_location'),
+            $request->user(),
         );
 
         return $this->successItem($updatedPallet, PalletResource::class, __('Pallet location updated successfully.'));
@@ -93,10 +94,12 @@ class PalletController extends ApiController
     {
         $this->authorize('updateClientTracking', $pallet);
 
+        $data = $request->validated();
         $updatedPallet = $this->palletService->updateClientStatus(
             $pallet,
-            (int) $request->validated('current_status_id'),
+            (int) $data['current_status_id'],
             $request->user(),
+            array_key_exists('current_location', $data) ? $data['current_location'] : null,
         );
 
         return $this->successItem($updatedPallet, PalletResource::class, __('Pallet status updated successfully.'));

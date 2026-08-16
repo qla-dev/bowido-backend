@@ -110,9 +110,9 @@ class PalletService extends BaseCrudService
         return $updatedPallet;
     }
 
-    public function updateCurrentLocation(Pallet $pallet, string $location): Pallet
+    public function updateCurrentLocation(Pallet $pallet, string $location, User $actor): Pallet
     {
-        return DB::transaction(function () use ($pallet, $location): Pallet {
+        return DB::transaction(function () use ($pallet, $location, $actor): Pallet {
             $lockedPallet = $this->palletRepository->lockForUpdate($pallet->id);
             $lockedPallet->loadMissing('currentStatus');
 
@@ -122,10 +122,18 @@ class PalletService extends BaseCrudService
                 ]);
             }
 
+            $originalAttributes = $lockedPallet->only(['user_id', 'current_status_id', 'current_location', 'qr_code']);
+            $attributes = ['current_location' => trim($location)];
+
             /** @var Pallet $updatedPallet */
-            $updatedPallet = $this->palletRepository->update($lockedPallet, [
-                'current_location' => trim($location),
-            ]);
+            $updatedPallet = $this->palletRepository->update($lockedPallet, $attributes);
+
+            $this->trackableAssetService->recordMutations(
+                pallet: $updatedPallet,
+                originalAttributes: $originalAttributes,
+                attributes: $attributes,
+                actor: $actor,
+            );
 
             return $updatedPallet->load(['user.role', 'user.customerDetail', 'currentStatus', 'deliveryLocation']);
         });
@@ -177,7 +185,7 @@ class PalletService extends BaseCrudService
         });
     }
 
-    public function updateClientStatus(Pallet $pallet, int $statusId, User $actor): Pallet
+    public function updateClientStatus(Pallet $pallet, int $statusId, User $actor, ?string $location = null): Pallet
     {
         $nextStatus = $this->statusRepository->findOrFail($statusId);
 
@@ -189,19 +197,26 @@ class PalletService extends BaseCrudService
 
         $overdueInvoiceData = null;
 
-        $updatedPallet = DB::transaction(function () use ($pallet, $statusId, $nextStatus, $actor, &$overdueInvoiceData): Pallet {
+        $updatedPallet = DB::transaction(function () use ($pallet, $statusId, $nextStatus, $actor, $location, &$overdueInvoiceData): Pallet {
             $lockedPallet = $this->palletRepository->lockForUpdate($pallet->id);
             $lockedPallet->loadMissing(['user.customerDetail', 'currentStatus']);
             $originalAttributes = $lockedPallet->only(['user_id', 'current_status_id', 'current_location', 'qr_code']);
+            $requestedLocation = trim((string) $location);
+            $statusChanged = (int) $lockedPallet->current_status_id !== $statusId;
             $overdueInvoiceData = $this->overdueInvoiceData($lockedPallet, $statusId);
-            $changedAt = now();
             $attributes = [
                 'user_id' => $lockedPallet->user_id,
                 'current_status_id' => $statusId,
-                'current_location' => $lockedPallet->current_location,
-                'last_status_changed_at' => $changedAt,
+                'current_location' => $requestedLocation !== ''
+                    ? $requestedLocation
+                    : $lockedPallet->current_location,
             ];
-            $attributes = [...$attributes, ...$this->customerTimerAttributes($lockedPallet, $nextStatus, $changedAt)];
+
+            if ($statusChanged) {
+                $changedAt = now();
+                $attributes['last_status_changed_at'] = $changedAt;
+                $attributes = [...$attributes, ...$this->customerTimerAttributes($lockedPallet, $nextStatus, $changedAt)];
+            }
 
             /** @var Pallet $updatedPallet */
             $updatedPallet = $this->palletRepository->update($lockedPallet, $attributes);
