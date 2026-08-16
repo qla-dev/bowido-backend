@@ -30,6 +30,14 @@ class PalletLifecycleFeatureTest extends TestCase
             'qr_code' => null,
             'is_ghost' => false,
         ]);
+        $ghostPalletWithDisplayReference = Pallet::factory()->create([
+            'current_status_id' => $status->id,
+            // Legacy ghost records may have had their generated reference
+            // copied into qr_code. They are still no-QR pallets.
+            'qr_code' => 'PWNQRC-0001',
+            'pallet_name' => 'PWNQRC-0001',
+            'is_ghost' => true,
+        ]);
 
         $this->actingAs($admin, 'api')
             ->getJson('/api/pallets?has_qr_code=1')
@@ -40,8 +48,42 @@ class PalletLifecycleFeatureTest extends TestCase
         $this->actingAs($admin, 'api')
             ->getJson('/api/pallets?has_qr_code=0')
             ->assertOk()
-            ->assertJsonPath('data.0.id', $noQrPallet->id)
-            ->assertJsonCount(1, 'data');
+            ->assertJsonCount(2, 'data')
+            ->assertJsonFragment(['id' => $noQrPallet->id])
+            ->assertJsonFragment(['id' => $ghostPalletWithDisplayReference->id]);
+    }
+
+    public function test_customers_see_no_qr_pallets_only_when_at_customer_or_pending_pickup(): void
+    {
+        $customer = $this->makeUser('customer');
+        $atCustomer = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $pendingPickup = Status::query()->where('slug', 'ophalen-klant')->firstOrFail();
+        $unknown = Status::query()->where('slug', 'onbekend')->firstOrFail();
+        $atCustomerGhost = Pallet::factory()->create([
+            'user_id' => $customer->id,
+            'current_status_id' => $atCustomer->id,
+            'is_ghost' => true,
+            'qr_code' => null,
+        ]);
+        $pendingPickupGhost = Pallet::factory()->create([
+            'user_id' => $customer->id,
+            'current_status_id' => $pendingPickup->id,
+            'is_ghost' => true,
+            'qr_code' => null,
+        ]);
+        $unknownGhost = Pallet::factory()->create([
+            'user_id' => $customer->id,
+            'current_status_id' => $unknown->id,
+            'is_ghost' => true,
+            'qr_code' => null,
+        ]);
+
+        $this->actingAs($customer, 'api')
+            ->getJson('/api/pallets?has_qr_code=0')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonFragment(['id' => $atCustomerGhost->id])
+            ->assertJsonFragment(['id' => $pendingPickupGhost->id]);
     }
 
     public function test_pallet_listing_can_be_scoped_to_records_updated_since_a_cursor(): void

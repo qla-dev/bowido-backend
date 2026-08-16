@@ -15,6 +15,14 @@ class GalleryController extends ApiController
 
     public function __invoke(ListGalleryPhotosRequest $request): JsonResponse
     {
+        if ($request->user()->isCustomer()) {
+            return $this->successCollection(
+                $this->photos->galleryForCustomer($request->user(), ListQueryData::fromRequest($request)),
+                PalletPhotoResource::class,
+                __('Customer delivery photos retrieved successfully.'),
+            );
+        }
+
         abort_unless($request->user()->hasModulePermission('image_gallery', 'viewAny'), 403);
 
         return $this->successCollection(

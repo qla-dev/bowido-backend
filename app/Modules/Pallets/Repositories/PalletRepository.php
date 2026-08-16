@@ -27,13 +27,19 @@ class PalletRepository extends BaseRepository
             'is_ghost' => 'is_ghost',
             'has_qr_code' => function (Builder $query, mixed $value): void {
                 if ((bool) $value) {
-                    $query->whereNotNull('qr_code')->where('qr_code', '!=', '');
+                    $query
+                        ->where('is_ghost', false)
+                        ->whereNotNull('qr_code')
+                        ->where('qr_code', '!=', '');
 
                     return;
                 }
 
                 $query->where(function (Builder $noQrQuery): void {
-                    $noQrQuery->whereNull('qr_code')->orWhere('qr_code', '');
+                    $noQrQuery
+                        ->where('is_ghost', true)
+                        ->orWhereNull('qr_code')
+                        ->orWhere('qr_code', '');
                 });
             },
             'is_for_repair' => 'is_for_repair',
@@ -55,14 +61,10 @@ class PalletRepository extends BaseRepository
         if ($actor?->isCustomer()) {
             $query
                 ->where('user_id', $actor->id)
-                ->where(function (Builder $customerPalletQuery): void {
-                    $customerPalletQuery
-                        ->where('is_ghost', true)
-                        ->orWhereHas('currentStatus', fn (Builder $statusQuery) => $statusQuery->whereIn(
-                            'slug',
-                            PalletCustomerAssignmentRule::ALLOWED_STATUS_SLUGS,
-                        ));
-                });
+                ->whereHas('currentStatus', fn (Builder $statusQuery) => $statusQuery->whereIn(
+                    'slug',
+                    PalletCustomerAssignmentRule::ALLOWED_STATUS_SLUGS,
+                ));
         }
 
         return $query;

@@ -4,6 +4,7 @@ namespace App\Modules\PalletPhotos\Services;
 
 use App\Modules\PalletPhotos\Enums\PalletPhotoType;
 use App\Modules\PalletPhotos\Models\PalletPhoto;
+use App\Modules\AuditLogs\Models\AuditLog;
 use App\Modules\Pallets\Models\Pallet;
 use App\Modules\ServiceReports\Models\ServiceReport;
 use App\Modules\Shared\DTOs\ListQueryData;
@@ -11,6 +12,7 @@ use App\Modules\Shared\Support\OffsetPaginationResult;
 use App\Modules\Statuses\Models\Status;
 use App\Modules\Users\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -30,12 +32,23 @@ class PalletPhotoService
         ?int $clientId = null,
     ): PalletPhoto {
         [$content, $width, $height] = $this->compressForDatabase($image);
+        $resolvedClientId = $clientId ?? $pallet->user_id;
+        $audit = $type === PalletPhotoType::Scan && $resolvedClientId !== null
+            ? AuditLog::query()
+                ->where('pallet_id', $pallet->id)
+                ->where('new_client_id', $resolvedClientId)
+                ->latest('created_at')
+                ->latest('id')
+                ->first()
+            : null;
 
         return PalletPhoto::query()->create([
             'pallet_id' => $pallet->id,
-            'old_status_id' => $oldStatusId ?? $pallet->current_status_id,
-            'new_status_id' => $newStatusId ?? $pallet->current_status_id,
-            'client_id' => $clientId ?? $pallet->user_id,
+            // A transition scan is uploaded after the pallet update, so its
+            // audit row is the source of truth for the old and new statuses.
+            'old_status_id' => $audit?->old_status_id ?? $oldStatusId ?? $pallet->current_status_id,
+            'new_status_id' => $audit?->new_status_id ?? $newStatusId ?? $pallet->current_status_id,
+            'client_id' => $resolvedClientId,
             'service_report_id' => $serviceReport?->id,
             'uploaded_by_user_id' => $actor->id,
             'type' => $type,
@@ -239,7 +252,12 @@ class PalletPhotoService
         }
 
         if ($actor->isCustomer()) {
-            return $photo->client_id === $actor->id || $photo->pallet?->user_id === $actor->id;
+            $photo->load([
+                'pallet.currentStatus',
+                'pallet.auditLogs' => fn ($query) => $this->constrainDeliveryAudits($query, $actor->id),
+            ]);
+
+            return $this->isCustomerDeliveryPhoto($photo, $actor);
         }
 
         $scope = $actor->modulePermissionScope('image_gallery');
@@ -327,5 +345,77 @@ class PalletPhotoService
             ->get();
 
         return new OffsetPaginationResult($items, $total, $queryData->limit, $queryData->offset);
+    }
+
+    /**
+     * Customer delivery gallery. A photo becomes visible only after the
+     * pallet's latest assignment audit log for that customer confirms the
+     * Bowido NL/unknown -> at-customer delivery transition. The image must
+     * have been stored within 24 hours after that transition.
+     */
+    public function galleryForCustomer(User $customer, ListQueryData $queryData): OffsetPaginationResult
+    {
+        $query = PalletPhoto::query()
+            ->with([
+                'pallet.user.customerDetail',
+                'pallet.currentStatus',
+                'oldStatus',
+                'newStatus',
+                'uploadedByUser.role',
+                'pallet.auditLogs' => fn ($auditQuery) => $this->constrainDeliveryAudits($auditQuery, $customer->id),
+            ])
+            // Earlier deliveries were recorded as status-transition scans.
+            ->whereIn('type', [PalletPhotoType::DeliveryPhoto, PalletPhotoType::Scan])
+            ->where('client_id', $customer->id)
+            ->whereHas('pallet', fn (Builder $palletQuery) => $palletQuery
+                ->where('user_id', $customer->id)
+                ->whereHas('currentStatus', fn (Builder $statusQuery) => $statusQuery
+                    ->whereIn('slug', ['bij-de-klant', 'ophalen-klant'])));
+
+        // The delivery window compares each photo's and audit log's timestamps,
+        // so it is intentionally evaluated in PHP. This keeps the rule exactly
+        // the same on MySQL and SQLite (used by the feature test suite).
+        $photos = $query->latest()->get()
+            ->filter(fn (PalletPhoto $photo): bool => $this->isCustomerDeliveryPhoto($photo, $customer))
+            ->values();
+        $total = $photos->count();
+        $items = $photos->slice($queryData->offset, $queryData->limit)->values();
+
+        return new OffsetPaginationResult($items, $total, $queryData->limit, $queryData->offset);
+    }
+
+    private function isCustomerDeliveryPhoto(PalletPhoto $photo, User $customer): bool
+    {
+        $pallet = $photo->pallet;
+
+        if (
+            ! in_array($photo->type, [PalletPhotoType::DeliveryPhoto, PalletPhotoType::Scan], true)
+            || $photo->client_id !== $customer->id
+            || $pallet?->user_id !== $customer->id
+            || ! in_array($pallet?->currentStatus?->slug, ['bij-de-klant', 'ophalen-klant'], true)
+        ) {
+            return false;
+        }
+
+        /** @var AuditLog|null $deliveryAudit */
+        $deliveryAudit = $pallet->auditLogs->first();
+        $photoSavedAt = $photo->created_at;
+
+        return $deliveryAudit !== null
+            && $deliveryAudit->new_client_id === $photo->client_id
+            && $photoSavedAt !== null
+            && $deliveryAudit->created_at->lessThanOrEqualTo($photoSavedAt)
+            && $deliveryAudit->created_at->greaterThanOrEqualTo($photoSavedAt->copy()->subHours(24));
+    }
+
+    private function constrainDeliveryAudits(Builder|Relation $query, int $customerId): void
+    {
+        $query
+            ->where('new_client_id', $customerId)
+            ->whereHas('newStatus', fn (Builder $statusQuery) => $statusQuery->where('slug', 'bij-de-klant'))
+            ->whereHas('oldStatus', fn (Builder $statusQuery) => $statusQuery->whereIn('slug', ['bowido-nl', 'onbekend']))
+            ->with(['oldStatus', 'newStatus'])
+            ->latest('created_at')
+            ->latest('id');
     }
 }

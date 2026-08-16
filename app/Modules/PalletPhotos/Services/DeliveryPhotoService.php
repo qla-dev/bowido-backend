@@ -2,6 +2,7 @@
 
 namespace App\Modules\PalletPhotos\Services;
 
+use App\Modules\AuditLogs\Models\AuditLog;
 use App\Modules\PalletPhotos\Enums\PalletPhotoType;
 use App\Modules\PalletPhotos\Models\PalletPhoto;
 use App\Modules\Pallets\Models\Pallet;
@@ -32,7 +33,15 @@ class DeliveryPhotoService
             return DB::transaction(function () use ($pallet, $actor, $photo, $encodedPhoto, $width, $height): PalletPhoto {
                 // Locking the pallet makes two uploads started at the same time
                 // resolve to one 24-hour delivery session.
-                Pallet::query()->lockForUpdate()->findOrFail($pallet->id);
+                $lockedPallet = Pallet::query()->lockForUpdate()->findOrFail($pallet->id);
+                $deliveryAudit = AuditLog::query()
+                    ->where('pallet_id', $lockedPallet->id)
+                    ->where('new_client_id', $lockedPallet->user_id)
+                    ->whereHas('newStatus', fn ($query) => $query->where('slug', 'bij-de-klant'))
+                    ->whereHas('oldStatus', fn ($query) => $query->whereIn('slug', ['bowido-nl', 'onbekend']))
+                    ->latest('created_at')
+                    ->latest('id')
+                    ->first();
 
                 $deliveryStartedAt = PalletPhoto::query()
                     ->where('pallet_id', $pallet->id)
@@ -42,10 +51,13 @@ class DeliveryPhotoService
                     ->value('delivery_started_at') ?? now();
 
                 return PalletPhoto::query()->create([
-                'pallet_id' => $pallet->id,
-                'old_status_id' => $pallet->current_status_id,
-                'new_status_id' => $pallet->current_status_id,
-                'client_id' => $pallet->user_id,
+                'pallet_id' => $lockedPallet->id,
+                // The delivery transition belongs to the pallet audit trail.
+                // Persist its statuses with every new delivery photo rather
+                // than duplicating the pallet's already-updated status.
+                'old_status_id' => $deliveryAudit?->old_status_id ?? $lockedPallet->current_status_id,
+                'new_status_id' => $deliveryAudit?->new_status_id ?? $lockedPallet->current_status_id,
+                'client_id' => $lockedPallet->user_id,
                 'uploaded_by_user_id' => $actor->id,
                 'type' => PalletPhotoType::DeliveryPhoto,
                 'delivery_started_at' => $deliveryStartedAt,

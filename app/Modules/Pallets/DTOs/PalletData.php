@@ -14,7 +14,7 @@ readonly class PalletData
         public int $currentStatusId,
         public string $type,
         public string $assetType,
-        public string $qrCode,
+        public ?string $qrCode,
         public string $palletName,
         public ?string $referenceCode,
         public ?string $currentLocation,
@@ -29,10 +29,16 @@ readonly class PalletData
      */
     public static function fromArray(array $attributes): self
     {
-        $qrCode = Normalizer::qrCode((string) ($attributes['qr_code'] ?? $attributes['pallet_name'] ?? ''));
+        $isGhost = (bool) ($attributes['is_ghost'] ?? false);
+        // A ghost record is the canonical representation of a pallet without a
+        // QR code. Its generated pallet name is an internal reference only and
+        // must never be copied into qr_code during an edit.
+        $qrCode = $isGhost
+            ? null
+            : Normalizer::qrCode((string) ($attributes['qr_code'] ?? $attributes['pallet_name'] ?? ''));
         $palletName = isset($attributes['pallet_name']) && trim((string) $attributes['pallet_name']) !== ''
             ? Normalizer::qrCode((string) $attributes['pallet_name'])
-            : $qrCode;
+            : ($qrCode ?? '');
         $referenceCode = isset($attributes['reference_code']) && trim((string) $attributes['reference_code']) !== ''
             ? Normalizer::qrCode((string) $attributes['reference_code'])
             : null;
@@ -50,7 +56,7 @@ readonly class PalletData
             currentLocation: $attributes['current_location'] ?? null,
             notes: $attributes['notes'] ?? null,
             isActive: (bool) ($attributes['is_active'] ?? true),
-            isGhost: (bool) ($attributes['is_ghost'] ?? false),
+            isGhost: $isGhost,
             metadata: isset($attributes['metadata']) && is_array($attributes['metadata']) ? $attributes['metadata'] : null,
         );
     }

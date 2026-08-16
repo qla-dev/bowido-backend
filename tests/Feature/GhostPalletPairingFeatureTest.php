@@ -101,6 +101,75 @@ class GhostPalletPairingFeatureTest extends TestCase
         $this->assertNull($photo->path);
     }
 
+    public function test_updating_a_no_qr_pallet_never_copies_its_display_reference_into_its_qr_code(): void
+    {
+        $admin = $this->makeUser('admin');
+        $customer = $this->makeUser('customer');
+        $unknownStatus = Status::query()->where('slug', 'onbekend')->firstOrFail();
+        $report = $this->actingAs($admin, 'api')->postJson('/api/ghost_pallet_reports', [
+            'user_id' => $customer->id,
+            'quantity' => 1,
+        ])->assertCreated();
+        $palletId = $report->json('data.pallets.0.id');
+
+        $this->actingAs($admin, 'api')
+            ->putJson('/api/pallets/'.$palletId, [
+                'user_id' => $customer->id,
+                'current_status_id' => $unknownStatus->id,
+                'type' => 'invullen!',
+                'asset_type' => 'invullen!',
+                'pallet_name' => 'PWNQRC-0001',
+                // Simulates the old frontend behaviour, which submitted the
+                // display reference in its qr_code field.
+                'qr_code' => 'PWNQRC-0001',
+                'is_ghost' => true,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.qr_code', null)
+            ->assertJsonPath('data.has_qr_code', false);
+
+        $this->assertDatabaseHas('pallets', [
+            'id' => $palletId,
+            'qr_code' => null,
+            'is_ghost' => true,
+        ]);
+    }
+
+    public function test_admin_can_change_a_no_qr_pallet_status_with_a_null_qr_code(): void
+    {
+        $admin = $this->makeUser('admin');
+        $customer = $this->makeUser('customer');
+        $atCustomer = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $report = $this->actingAs($admin, 'api')->postJson('/api/ghost_pallet_reports', [
+            'user_id' => $customer->id,
+            'quantity' => 1,
+        ])->assertCreated();
+        $palletId = $report->json('data.pallets.0.id');
+
+        $this->actingAs($admin, 'api')
+            ->putJson('/api/pallets/'.$palletId, [
+                'user_id' => $customer->id,
+                'current_status_id' => $atCustomer->id,
+                'type' => 'invullen!',
+                'asset_type' => 'invullen!',
+                'pallet_name' => 'PWNQRC-0001',
+                'qr_code' => null,
+                'is_ghost' => true,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.current_status_slug', 'bij-de-klant')
+            ->assertJsonPath('data.user_id', $customer->id)
+            ->assertJsonPath('data.qr_code', null);
+
+        $this->assertDatabaseHas('pallets', [
+            'id' => $palletId,
+            'user_id' => $customer->id,
+            'current_status_id' => $atCustomer->id,
+            'qr_code' => null,
+            'is_ghost' => true,
+        ]);
+    }
+
     public function test_no_qr_pallet_can_be_deleted_with_its_report_only_records(): void
     {
         $admin = $this->makeUser('admin');

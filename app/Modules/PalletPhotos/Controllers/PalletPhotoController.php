@@ -44,6 +44,14 @@ class PalletPhotoController extends ApiController
     {
         $this->authorize('view', $customerDetail);
 
+        if ($request->user()->isCustomer()) {
+            return $this->successCollection(
+                $this->palletPhotoService->galleryForCustomer($request->user(), ListQueryData::fromRequest($request)),
+                PalletPhotoResource::class,
+                __('Customer delivery photos retrieved successfully.'),
+            );
+        }
+
         return $this->successCollection(
             $this->palletPhotoService->forCustomer($customerDetail->user_id, ListQueryData::fromRequest($request)),
             PalletPhotoResource::class,

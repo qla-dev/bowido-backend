@@ -181,6 +181,45 @@ class PalletPhotoFeatureTest extends TestCase
         $this->assertDatabaseMissing('pallet_photos', ['id' => $photo->id]);
     }
 
+    public function test_status_transition_scan_uses_audit_log_statuses_instead_of_the_updated_pallet_status(): void
+    {
+        $admin = $this->makeUser('admin');
+        $customer = $this->makeUser('customer');
+        $warehouse = Status::query()->where('slug', 'bowido-nl')->firstOrFail();
+        $atCustomer = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $pallet = Pallet::factory()->create([
+            'user_id' => $customer->id,
+            'current_status_id' => $atCustomer->id,
+        ]);
+        AuditLog::query()->create([
+            'pallet_id' => $pallet->id,
+            'made_by_user_id' => $admin->id,
+            'event_type' => 'status_changed',
+            'old_status_id' => $warehouse->id,
+            'new_status_id' => $atCustomer->id,
+            'new_client_id' => $customer->id,
+        ]);
+
+        $this->actingAs($admin, 'api')
+            ->post("/api/pallets/{$pallet->id}/photos", [
+                'image' => UploadedFile::fake()->image('transition-scan.jpg'),
+                // Simulate the driver uploading after the pallet status has
+                // already been updated, when both submitted IDs are current.
+                'old_status_id' => $atCustomer->id,
+                'new_status_id' => $atCustomer->id,
+                'client_id' => $customer->id,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.old_status_id', $warehouse->id)
+            ->assertJsonPath('data.new_status_id', $atCustomer->id);
+
+        $this->assertDatabaseHas('pallet_photos', [
+            'pallet_id' => $pallet->id,
+            'old_status_id' => $warehouse->id,
+            'new_status_id' => $atCustomer->id,
+        ]);
+    }
+
     public function test_damage_report_photo_is_stored_with_the_damage_type_without_an_audit_log(): void
     {
         $admin = $this->makeUser('admin');
@@ -313,9 +352,18 @@ class PalletPhotoFeatureTest extends TestCase
         $warehouse = $this->makeUser('warehouse_operator');
         $customer = $this->makeUser('customer');
         $status = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $warehouseStatus = Status::query()->where('slug', 'bowido-nl')->firstOrFail();
         $pallet = Pallet::factory()->create([
             'user_id' => $customer->id,
             'current_status_id' => $status->id,
+        ]);
+        AuditLog::query()->create([
+            'pallet_id' => $pallet->id,
+            'made_by_user_id' => $admin->id,
+            'event_type' => 'status_changed',
+            'old_status_id' => $warehouseStatus->id,
+            'new_status_id' => $status->id,
+            'new_client_id' => $customer->id,
         ]);
 
         $response = $this->actingAs($admin, 'api')->post(
@@ -328,11 +376,15 @@ class PalletPhotoFeatureTest extends TestCase
             ->assertJsonPath('data.type', 'delivery_photo')
             ->assertJsonPath('data.mime_type', 'image/webp')
             ->assertJsonPath('data.width', 1600)
-            ->assertJsonPath('data.height', 1200);
+            ->assertJsonPath('data.height', 1200)
+            ->assertJsonPath('data.old_status_id', $warehouseStatus->id)
+            ->assertJsonPath('data.new_status_id', $status->id);
 
         $photo = PalletPhoto::query()->firstOrFail();
 
         $this->assertSame('delivery_photo', $photo->type->value);
+        $this->assertSame($warehouseStatus->id, $photo->old_status_id);
+        $this->assertSame($status->id, $photo->new_status_id);
         $this->assertNull($photo->disk);
         $this->assertNull($photo->path);
         $this->assertSame('warehouse_nl', $photo->warehouse_scope);
@@ -426,5 +478,75 @@ class PalletPhotoFeatureTest extends TestCase
             ->assertJsonValidationErrors('photo');
 
         $this->assertDatabaseMissing('pallet_photos', ['pallet_id' => $pallet->id]);
+    }
+
+    public function test_customer_gallery_only_shows_delivery_photos_for_their_current_delivery_pallets(): void
+    {
+        $admin = $this->makeUser('admin');
+        $customer = $this->makeUser('customer');
+        $otherCustomer = $this->makeUser('customer');
+        $atCustomer = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $pickup = Status::query()->where('slug', 'ophalen-klant')->firstOrFail();
+        $warehouse = Status::query()->where('slug', 'bowido-nl')->firstOrFail();
+
+        $visiblePallet = Pallet::factory()->create(['user_id' => $customer->id, 'current_status_id' => $atCustomer->id]);
+        $pickupPallet = Pallet::factory()->create(['user_id' => $customer->id, 'current_status_id' => $pickup->id]);
+        $otherPallet = Pallet::factory()->create(['user_id' => $otherCustomer->id, 'current_status_id' => $atCustomer->id]);
+        $warehousePallet = Pallet::factory()->create(['user_id' => $customer->id, 'current_status_id' => $warehouse->id]);
+
+        foreach ([$visiblePallet, $pickupPallet] as $pallet) {
+            AuditLog::query()->create([
+                'pallet_id' => $pallet->id,
+                'made_by_user_id' => $admin->id,
+                'event_type' => 'status_changed',
+                'old_status_id' => $warehouse->id,
+                'new_status_id' => $atCustomer->id,
+                'new_client_id' => $customer->id,
+            ]);
+        }
+        // This is newer than the delivery transition, but must not hide the
+        // delivery photos while the pallet is awaiting customer pickup.
+        AuditLog::query()->create([
+            'pallet_id' => $pickupPallet->id,
+            'made_by_user_id' => $admin->id,
+            'event_type' => 'status_changed',
+            'old_status_id' => $atCustomer->id,
+            'new_status_id' => $pickup->id,
+            'new_client_id' => $customer->id,
+        ]);
+
+        $visiblePhoto = PalletPhoto::query()->create([
+            'pallet_id' => $visiblePallet->id, 'client_id' => $customer->id,
+            'uploaded_by_user_id' => $admin->id, 'type' => 'delivery_photo',
+            'mime_type' => 'image/webp', 'size_bytes' => 5, 'expires_at' => now()->addHour(),
+        ]);
+        $pickupPhoto = PalletPhoto::query()->create([
+            'pallet_id' => $pickupPallet->id, 'client_id' => $customer->id,
+            'uploaded_by_user_id' => $admin->id, 'type' => 'delivery_photo',
+            'mime_type' => 'image/webp', 'size_bytes' => 5, 'expires_at' => now()->addHour(),
+        ]);
+        PalletPhoto::query()->create([
+            'pallet_id' => $otherPallet->id, 'client_id' => $customer->id,
+            'uploaded_by_user_id' => $admin->id, 'type' => 'delivery_photo',
+            'mime_type' => 'image/webp', 'size_bytes' => 5, 'expires_at' => now()->addHour(),
+        ]);
+        PalletPhoto::query()->create([
+            'pallet_id' => $warehousePallet->id, 'client_id' => $customer->id,
+            'uploaded_by_user_id' => $admin->id, 'type' => 'delivery_photo',
+            'mime_type' => 'image/webp', 'size_bytes' => 5, 'expires_at' => now()->addHour(),
+        ]);
+        $legacyDeliveryScan = PalletPhoto::query()->create([
+            'pallet_id' => $visiblePallet->id, 'client_id' => $customer->id,
+            'uploaded_by_user_id' => $admin->id, 'type' => 'scan',
+            'mime_type' => 'image/webp', 'size_bytes' => 5, 'expires_at' => now()->addHour(),
+        ]);
+
+        $this->actingAs($customer, 'api')
+            ->getJson('/api/gallery')
+            ->assertOk()
+            ->assertJsonCount(3, 'data')
+            ->assertJsonFragment(['id' => $visiblePhoto->id])
+            ->assertJsonFragment(['id' => $pickupPhoto->id])
+            ->assertJsonFragment(['id' => $legacyDeliveryScan->id]);
     }
 }

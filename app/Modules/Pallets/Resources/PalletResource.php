@@ -35,7 +35,7 @@ class PalletResource extends JsonResource
             'type' => $this->type ?? $this->asset_type,
             'asset_type' => $this->asset_type,
             'qr_code' => $this->qr_code,
-            'has_qr_code' => filled($this->qr_code),
+            'has_qr_code' => ! $this->is_ghost && filled($this->qr_code),
             'pallet_name' => $this->pallet_name,
             'reference_code' => $this->reference_code,
             'current_location' => $this->current_location,

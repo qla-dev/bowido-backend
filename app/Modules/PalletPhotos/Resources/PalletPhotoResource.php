@@ -2,6 +2,8 @@
 
 namespace App\Modules\PalletPhotos\Resources;
 
+use App\Modules\AuditLogs\Models\AuditLog;
+use App\Modules\PalletPhotos\Enums\PalletPhotoType;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -9,13 +11,30 @@ class PalletPhotoResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $photoStatus = $this->newStatus ?? $this->oldStatus ?? $this->pallet?->currentStatus;
+        // Older delivery photos predate the audit-backed status fields. Read
+        // their transition from the same source as newly stored photos so the
+        // UI never reports the current status as both old and new.
+        $deliveryAudit = in_array($this->type, [PalletPhotoType::DeliveryPhoto, PalletPhotoType::Scan], true)
+            && $this->client_id !== null
+            ? AuditLog::query()
+                ->with(['oldStatus', 'newStatus'])
+                ->where('pallet_id', $this->pallet_id)
+                ->where('new_client_id', $this->client_id)
+                ->whereHas('newStatus', fn ($query) => $query->where('slug', 'bij-de-klant'))
+                ->whereHas('oldStatus', fn ($query) => $query->whereIn('slug', ['bowido-nl', 'onbekend']))
+                ->latest('created_at')
+                ->latest('id')
+                ->first()
+            : null;
+        $oldStatus = $deliveryAudit?->oldStatus ?? $this->oldStatus;
+        $newStatus = $deliveryAudit?->newStatus ?? $this->newStatus;
+        $photoStatus = $newStatus ?? $oldStatus ?? $this->pallet?->currentStatus;
 
         return [
             'id' => $this->id,
             'pallet_id' => $this->pallet_id,
-            'old_status_id' => $this->old_status_id,
-            'new_status_id' => $this->new_status_id,
+            'old_status_id' => $deliveryAudit?->old_status_id ?? $this->old_status_id,
+            'new_status_id' => $deliveryAudit?->new_status_id ?? $this->new_status_id,
             'client_id' => $this->client_id,
             'service_report_id' => $this->service_report_id,
             'uploaded_by_user_id' => $this->uploaded_by_user_id,
