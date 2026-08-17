@@ -445,7 +445,7 @@ function statusSlug(mixed $waar): string
         'bij de klant' => 'at_customer',
         'bih nl transport', 'nl bih transport' => 'transport',
         'bowido nl', 'bowido bih' => 'bowido_warehouse',
-        'ophalen klant' => 'pending_return',
+        'ophalen klant', 'voor retour' => 'ophalen-klant',
         'onbekend', 'bih drugo', '' => 'unknown',
         default => 'unknown',
     };

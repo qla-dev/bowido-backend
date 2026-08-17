@@ -72,7 +72,7 @@ class ReferenceDataSeeder extends Seeder
                 'sort_order' => 20,
             ],
             [
-                'name' => 'Ophalen klant',
+                'name' => 'Voor retour',
                 'slug' => 'ophalen-klant',
                 'description' => 'Pallet remains with the customer until pickup is completed.',
                 'is_billable' => false,

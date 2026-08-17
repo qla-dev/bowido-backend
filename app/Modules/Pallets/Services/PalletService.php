@@ -257,7 +257,7 @@ class PalletService extends BaseCrudService
 
         if (! $this->customerAssignmentRule->statusAllowsCustomer($status)) {
             throw ValidationException::withMessages([
-                'current_status_id' => [__('Customers may only set Bij de klant or Ophalen klant.')],
+                'current_status_id' => [__('Customers may only set Bij de klant or Voor retour.')],
             ]);
         }
 

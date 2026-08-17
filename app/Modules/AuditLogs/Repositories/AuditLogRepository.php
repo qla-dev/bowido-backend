@@ -107,8 +107,14 @@ class AuditLogRepository extends BaseRepository
     protected function allowedSorts(): array
     {
         return [
-            'timestamp' => 'created_at',
-            'created_at' => 'created_at',
+            // Timestamps can share the same database precision. A secondary
+            // order keeps offset pagination stable and prevents overlap.
+            'timestamp' => fn (Builder $query, string $direction) => $query
+                ->orderBy('created_at', $direction)
+                ->orderBy('id', $direction),
+            'created_at' => fn (Builder $query, string $direction) => $query
+                ->orderBy('created_at', $direction)
+                ->orderBy('id', $direction),
             'logType' => 'event_type',
             'event_type' => 'event_type',
             'pallet' => fn (Builder $query, string $direction) => $query->orderBy(
