@@ -26,6 +26,8 @@ class StoreGhostPalletReportRequest extends ApiFormRequest
             'notes' => ['nullable', 'string'],
             'metadata' => ['nullable', 'array'],
             'image' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:10240'],
+            'images' => ['nullable', 'array', 'max:10'],
+            'images.*' => ['image', 'mimes:jpeg,jpg,png,webp', 'max:10240'],
         ];
     }
 }

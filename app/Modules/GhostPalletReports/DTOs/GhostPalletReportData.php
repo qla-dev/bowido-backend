@@ -18,7 +18,8 @@ readonly class GhostPalletReportData
         public ?string $description,
         public ?string $notes,
         public ?array $metadata,
-        public ?UploadedFile $image,
+        /** @var array<int, UploadedFile> */
+        public array $images,
     ) {
     }
 
@@ -36,7 +37,10 @@ readonly class GhostPalletReportData
             description: $attributes['description'] ?? null,
             notes: $attributes['notes'] ?? null,
             metadata: isset($attributes['metadata']) && is_array($attributes['metadata']) ? $attributes['metadata'] : null,
-            image: $attributes['image'] ?? null,
+            images: array_values(array_filter([
+                $attributes['image'] ?? null,
+                ...(is_array($attributes['images'] ?? null) ? $attributes['images'] : []),
+            ], static fn (mixed $image): bool => $image instanceof UploadedFile)),
         );
     }
 }

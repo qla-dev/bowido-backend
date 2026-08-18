@@ -55,10 +55,10 @@ class GhostPalletReportService extends BaseCrudService
                 'metadata' => $data->metadata,
             ]);
 
-            $unknownStatusId = Status::query()->where('slug', 'onbekend')->value('id');
-            if ($unknownStatusId === null) {
+            $customerPickupStatusId = Status::query()->where('slug', 'ophalen-klant')->value('id');
+            if ($customerPickupStatusId === null) {
                 throw ValidationException::withMessages([
-                    'status' => [__('The Onbekend status is required for pallets without QR codes.')],
+                    'status' => [__('The Voor retour status is required for pallets without QR codes.')],
                 ]);
             }
 
@@ -67,10 +67,16 @@ class GhostPalletReportService extends BaseCrudService
             $firstPallet = null;
             for ($index = 0; $index < $data->quantity; $index++) {
                 $entry = is_array($entries[$index] ?? null) ? $entries[$index] : [];
+                $palletNotes = collect([$data->notes, $entry['note'] ?? null])
+                    ->filter(static fn (mixed $note): bool => is_string($note) && trim($note) !== '')
+                    ->map(static fn (string $note): string => trim($note))
+                    ->implode(' | ');
                 /** @var Pallet $pallet */
                 $pallet = Pallet::query()->create([
                     'user_id' => $clientUserId,
-                    'current_status_id' => $unknownStatusId,
+                    // A customer-reported pallet without a QR code is ready
+                    // to be collected. It remains assigned to that customer.
+                    'current_status_id' => $customerPickupStatusId,
                     // A no-QR report has no type field. Keep that visibly
                     // incomplete instead of silently assigning "pallet".
                     'type' => 'invullen!',
@@ -79,22 +85,21 @@ class GhostPalletReportService extends BaseCrudService
                     // null; the generated pallet name identifies the record.
                     'qr_code' => null,
                     'pallet_name' => $this->nextNoQrPalletName(),
-                    // An unknown pallet deliberately has no operational
-                    // location. The report itself still retains where it was
-                    // found for follow-up purposes.
+                    // The report itself retains where the pallet was found
+                    // for pickup follow-up purposes.
                     'current_location' => null,
-                    'notes' => $entry['note'] ?? $data->notes,
+                    'notes' => $palletNotes !== '' ? $palletNotes : null,
                     'is_ghost' => true,
                     'ghost_pallet_report_id' => $ghostPalletReport->id,
                     'last_status_changed_at' => now(),
                 ]);
                 $firstPallet ??= $pallet;
 
-                if ($data->image !== null) {
+                foreach ($data->images as $image) {
                     $this->palletPhotoService->store(
                         pallet: $pallet,
                         actor: $actor,
-                        image: $data->image,
+                        image: $image,
                         type: PalletPhotoType::NoQrReport,
                         clientId: $clientUserId,
                     );

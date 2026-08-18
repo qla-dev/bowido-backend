@@ -38,6 +38,7 @@ class GhostPalletReportController extends ApiController
             GhostPalletReportData::fromArray([
                 ...$request->validated(),
                 'image' => $request->file('image'),
+                'images' => $request->file('images', []),
             ]),
             $request->user(),
         );

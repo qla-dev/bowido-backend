@@ -160,12 +160,24 @@ class PalletPhotoService
             'newStatus',
             'uploadedByUser.role',
             'serviceReport',
-        ])
+        ]);
+
+        $query->where(function (Builder $visiblePhotos) use ($actor): void {
             // Older delivery images were saved as scan/status photos. Keep
             // those visible, but never mix damage-report evidence into the
             // Delivery Information gallery.
-            ->where('type', '!=', PalletPhotoType::DamageReport)
-            ->whereHas('pallet.currentStatus', fn (Builder $statusQuery) => $statusQuery->whereIn('slug', ['bij-de-klant', 'ophalen-klant']));
+            $visiblePhotos->where(function (Builder $deliveryPhotos): void {
+                $deliveryPhotos
+                    ->where('type', '!=', PalletPhotoType::DamageReport)
+                    ->whereHas('pallet.currentStatus', fn (Builder $statusQuery) => $statusQuery->whereIn('slug', ['bij-de-klant', 'ophalen-klant']));
+            });
+
+            // Admins can inspect every image attached to a no-QR pallet from
+            // its dedicated table, including its original report evidence.
+            if ($actor->isAdmin()) {
+                $visiblePhotos->orWhereHas('pallet', fn (Builder $palletQuery) => $palletQuery->where('is_ghost', true));
+            }
+        });
 
         if (! $actor->isAdmin()) {
             $scope = $actor->modulePermissionScope('image_gallery');

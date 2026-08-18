@@ -23,6 +23,14 @@ class PalletResource extends JsonResource
         $deletedClientName = is_array($this->metadata)
             ? ($this->metadata['deleted_client_name'] ?? null)
             : null;
+        $notes = trim((string) $this->notes);
+        $reportNotes = $this->relationLoaded('ghostPalletReport')
+            ? trim((string) $this->ghostPalletReport?->notes)
+            : '';
+
+        if ($reportNotes !== '' && ! str_contains($notes, $reportNotes)) {
+            $notes = implode(' | ', array_filter([$reportNotes, $notes]));
+        }
 
         return [
             'id' => $this->id,
@@ -39,8 +47,8 @@ class PalletResource extends JsonResource
             'pallet_name' => $this->pallet_name,
             'reference_code' => $this->reference_code,
             'current_location' => $this->current_location,
-            'notes' => $this->notes,
-            'note' => $this->notes,
+            'notes' => $notes !== '' ? $notes : null,
+            'note' => $notes !== '' ? $notes : null,
             'last_status_changed_at' => $this->last_status_changed_at,
             'customer_timer_started_at' => $this->customer_timer_started_at,
             'customer_timer_frozen_at' => $this->customer_timer_frozen_at,

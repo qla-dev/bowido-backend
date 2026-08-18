@@ -53,7 +53,7 @@ class PalletRepository extends BaseRepository
 
     protected function relations(): array
     {
-        return ['user.customerDetail', 'currentStatus', 'deliveryLocation'];
+        return ['user.customerDetail', 'currentStatus', 'deliveryLocation', 'ghostPalletReport'];
     }
 
     protected function scopeForActor(Builder $query, ?User $actor): Builder

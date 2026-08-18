@@ -20,6 +20,7 @@ class GhostPalletPairingFeatureTest extends TestCase
         $admin = $this->makeUser('admin');
         $customer = $this->makeUser('customer');
         $status = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $customerPickupStatus = Status::query()->where('slug', 'ophalen-klant')->firstOrFail();
         $pallet = Pallet::factory()->create([
             'user_id' => $customer->id,
             'current_status_id' => $status->id,
@@ -34,6 +35,8 @@ class GhostPalletPairingFeatureTest extends TestCase
             ->assertJsonCount(3, 'data.pallets')
             ->assertJsonPath('data.pallets.0.qr_code', null)
             ->assertJsonPath('data.pallets.0.pallet_name', 'PWNQRC-0001')
+            ->assertJsonPath('data.pallets.0.current_status_id', $customerPickupStatus->id)
+            ->assertJsonPath('data.pallets.0.user_id', $customer->id)
             ->assertJsonPath('data.pallets.0.type', 'invullen!');
 
         $ghostReportId = $ghostReport->json('data.id');
