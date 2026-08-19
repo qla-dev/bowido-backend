@@ -92,14 +92,16 @@ class PalletService extends BaseCrudService
                 $changedAt = now();
                 $attributes['last_status_changed_at'] = $changedAt;
                 $attributes = [...$attributes, ...$this->customerTimerAttributes($lockedPallet, $nextStatus, $changedAt)];
-            } elseif ($customerChanged && $this->customerAssignmentRule->isAtCustomer($nextStatus)) {
+            }
+
+            if ($customerChanged && $this->customerAssignmentRule->isAtCustomer($nextStatus)) {
                 // Assigning a different customer while the pallet is already
                 // at a customer starts a new possession period. This refreshes
                 // the return-by and deadline calculations using that client's
                 // grace period without requiring a redundant status change.
-                $changedAt = now();
-                $attributes['last_status_changed_at'] = $changedAt;
-                $attributes['customer_timer_started_at'] = $changedAt;
+                $customerChangedAt = $attributes['last_status_changed_at'] ?? now();
+                $attributes['last_status_changed_at'] = $customerChangedAt;
+                $attributes['customer_timer_started_at'] = $customerChangedAt;
                 $attributes['customer_timer_frozen_at'] = null;
             }
 
@@ -268,12 +270,24 @@ class PalletService extends BaseCrudService
             $nextLocation = filled($trimmedLocation)
                 ? $trimmedLocation
                 : $lockedPallet->current_location;
+            $timerAttributes = $this->customerTimerAttributes($lockedPallet, $status, $changedAt);
+
+            if (
+                (int) ($lockedPallet->user_id ?? 0) !== $customer->id
+                && $this->customerAssignmentRule->isAtCustomer($status)
+            ) {
+                $timerAttributes = [
+                    'customer_timer_started_at' => $changedAt,
+                    'customer_timer_frozen_at' => null,
+                ];
+            }
+
             $lockedPallet->update([
                 'user_id' => $customer->id,
                 'current_status_id' => $status->id,
                 'current_location' => $nextLocation,
                 'last_status_changed_at' => $changedAt,
-                ...$this->customerTimerAttributes($lockedPallet, $status, $changedAt),
+                ...$timerAttributes,
             ]);
 
             Log::info('Customer claimed pallet possession.', [
@@ -385,6 +399,19 @@ class PalletService extends BaseCrudService
         $currentSlug = $pallet->currentStatus?->slug;
 
         if (
+            $this->customerAssignmentRule->isCustomerPickup($currentSlug)
+            && $this->customerAssignmentRule->isAtCustomer($nextStatus)
+        ) {
+            return [
+                // A customer can undo a return request. Keep the original
+                // delivery date so the grace period and overdue clock resume
+                // from that possession period rather than starting over.
+                'customer_timer_started_at' => $pallet->customer_timer_started_at ?? $pallet->last_status_changed_at ?? $changedAt,
+                'customer_timer_frozen_at' => null,
+            ];
+        }
+
+        if (
             $this->customerAssignmentRule->isAtCustomer($nextStatus)
             && ! $this->customerAssignmentRule->isAtCustomer($currentSlug)
         ) {
@@ -424,8 +451,9 @@ class PalletService extends BaseCrudService
             return null;
         }
 
+        $customerSince = $pallet->customer_timer_started_at ?? $pallet->last_status_changed_at;
         $graceDays = $pallet->user->customerDetail?->grace_period_days ?? $pallet->currentStatus->grace_period_days ?? 0;
-        $daysAtCustomer = $pallet->last_status_changed_at->copy()->startOfDay()->diffInDays(now()->startOfDay());
+        $daysAtCustomer = $customerSince->copy()->startOfDay()->diffInDays(now()->startOfDay());
         $overdueDays = max(0, $daysAtCustomer - $graceDays);
 
         if ($overdueDays === 0) {
@@ -434,7 +462,7 @@ class PalletService extends BaseCrudService
 
         $pricePerDay = (float) ($pallet->user->customerDetail?->default_price_per_day ?? $pallet->currentStatus->price_per_day ?? 0);
 
-        return [$pallet->user, $pallet->last_status_changed_at, $graceDays, $overdueDays, $pricePerDay];
+        return [$pallet->user, $customerSince, $graceDays, $overdueDays, $pricePerDay];
     }
 
     /**

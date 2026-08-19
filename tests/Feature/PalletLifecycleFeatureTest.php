@@ -140,6 +140,64 @@ class PalletLifecycleFeatureTest extends TestCase
         }
     }
 
+    public function test_return_reversal_keeps_the_original_customer_timer_for_the_same_customer(): void
+    {
+        $customer = $this->makeUser('customer');
+        $admin = $this->makeUser('admin');
+        $atCustomer = Status::query()->where('slug', 'bij-de-klant')->firstOrFail();
+        $pickup = Status::query()->where('slug', 'ophalen-klant')->firstOrFail();
+        $startedAt = Carbon::parse('2026-08-01 09:00:00');
+        $pallet = Pallet::factory()->create([
+            'user_id' => $customer->id,
+            'current_status_id' => $atCustomer->id,
+            'last_status_changed_at' => $startedAt,
+            'customer_timer_started_at' => $startedAt,
+        ]);
+
+        Carbon::setTestNow('2026-08-06 14:30:00');
+
+        try {
+            $this->actingAs($customer, 'api')
+                ->putJson('/api/pallets/'.$pallet->id.'/client-status', [
+                    'current_status_id' => $pickup->id,
+                ])
+                ->assertOk();
+
+            Carbon::setTestNow('2026-08-09 11:15:00');
+
+            $this->actingAs($customer, 'api')
+                ->putJson('/api/pallets/'.$pallet->id.'/client-status', [
+                    'current_status_id' => $atCustomer->id,
+                ])
+                ->assertOk();
+
+            $pallet->refresh();
+            $this->assertTrue($pallet->last_status_changed_at->equalTo(now()));
+            $this->assertTrue($pallet->customer_timer_started_at->equalTo($startedAt));
+            $this->assertNull($pallet->customer_timer_frozen_at);
+
+            Carbon::setTestNow('2026-08-10 08:00:00');
+            $this->actingAs($admin, 'api')
+                ->putJson('/api/pallets/'.$pallet->id, [
+                    'current_status_id' => $pickup->id,
+                ])
+                ->assertOk();
+
+            Carbon::setTestNow('2026-08-11 08:00:00');
+            $this->actingAs($admin, 'api')
+                ->putJson('/api/pallets/'.$pallet->id, [
+                    'current_status_id' => $atCustomer->id,
+                ])
+                ->assertOk();
+
+            $pallet->refresh();
+            $this->assertTrue($pallet->customer_timer_started_at->equalTo($startedAt));
+            $this->assertNull($pallet->customer_timer_frozen_at);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
     public function test_current_location_update_persists_the_location_chosen_in_the_client_list(): void
     {
         $admin = $this->makeUser('admin');

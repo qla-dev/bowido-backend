@@ -121,6 +121,42 @@ class MonthlyOverdueInvoiceFeatureTest extends TestCase
         $this->assertCount(2, $invoice->items);
     }
 
+    public function test_monthly_billing_uses_the_frozen_customer_timer_for_pallets_awaiting_return(): void
+    {
+        Carbon::setTestNow('2026-08-01 00:01:00');
+
+        try {
+            $customer = $this->makeUser('customer');
+            CustomerDetail::factory()->create([
+                'user_id' => $customer->id,
+                'grace_period_days' => 2,
+                'default_price_per_day' => 2.50,
+            ]);
+            $pickup = Status::query()->where('slug', 'ophalen-klant')->firstOrFail();
+            $pallet = Pallet::factory()->create([
+                'user_id' => $customer->id,
+                'current_status_id' => $pickup->id,
+                'last_status_changed_at' => Carbon::parse('2026-07-16 14:30:00'),
+                'customer_timer_started_at' => Carbon::parse('2026-07-01 09:00:00'),
+                'customer_timer_frozen_at' => Carbon::parse('2026-07-16 14:30:00'),
+            ]);
+
+            $this->artisan('invoices:generate-previous-month')->assertSuccessful();
+            $this->artisan('invoices:generate-previous-month')->assertSuccessful();
+
+            $invoice = Invoice::query()->with('items')->sole();
+            $item = $invoice->items->sole();
+
+            $this->assertSame($pallet->id, $item->pallet_id);
+            $this->assertSame('2026-07-04', $item->period_start->toDateString());
+            $this->assertSame('2026-07-16', $item->period_end->toDateString());
+            $this->assertSame(13, $item->billed_days);
+            $this->assertSame('32.50', $item->amount);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
     public function test_data_migration_merges_existing_automatic_monthly_duplicates(): void
     {
         Carbon::setTestNow('2026-08-11 12:00:00');

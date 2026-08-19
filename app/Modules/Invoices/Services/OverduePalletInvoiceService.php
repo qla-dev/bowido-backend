@@ -4,6 +4,7 @@ namespace App\Modules\Invoices\Services;
 
 use App\Modules\Invoices\Models\Invoice;
 use App\Modules\Pallets\Models\Pallet;
+use App\Modules\Pallets\Rules\PalletCustomerAssignmentRule;
 use App\Modules\Shared\Enums\InvoiceStatus;
 use App\Modules\Users\Models\User;
 use Carbon\Carbon;
@@ -134,18 +135,31 @@ class OverduePalletInvoiceService
     public function generateForMonth(CarbonInterface $month): Collection
     {
         $periodEnd = Carbon::parse($month)->endOfMonth()->startOfDay();
+        $periodStart = $periodEnd->copy()->startOfMonth();
         $invoices = collect();
 
         Pallet::query()
             ->whereNotNull('user_id')
-            ->whereNotNull('last_status_changed_at')
-            ->where('last_status_changed_at', '<=', $periodEnd->copy()->endOfDay())
-            ->whereHas('currentStatus', fn ($query) => $query->where('slug', 'bij-de-klant'))
+            ->whereRaw('COALESCE(customer_timer_started_at, last_status_changed_at) <= ?', [$periodEnd->copy()->endOfDay()])
+            ->whereHas('currentStatus', fn ($query) => $query->whereIn('slug', PalletCustomerAssignmentRule::ALLOWED_STATUS_SLUGS))
             ->with(['user.customerDetail', 'currentStatus'])
             ->orderBy('id')
-            ->chunkById(500, function ($pallets) use ($periodEnd, $invoices): void {
+            ->chunkById(500, function ($pallets) use ($periodStart, $periodEnd, $invoices): void {
                 foreach ($pallets as $pallet) {
-                    if (! $pallet->user instanceof User || ! $pallet->last_status_changed_at) {
+                    $customerSince = $pallet->customer_timer_started_at ?? $pallet->last_status_changed_at;
+
+                    if (! $pallet->user instanceof User || ! $customerSince) {
+                        continue;
+                    }
+
+                    $billingThrough = $pallet->customer_timer_frozen_at
+                        ? $pallet->customer_timer_frozen_at->copy()->min($periodEnd)
+                        : $periodEnd;
+
+                    if (
+                        $billingThrough->lt($customerSince->copy()->startOfDay())
+                        || $billingThrough->lt($periodStart)
+                    ) {
                         continue;
                     }
 
@@ -154,7 +168,7 @@ class OverduePalletInvoiceService
                         ?? 0;
                     $overdueDays = max(
                         0,
-                        $pallet->last_status_changed_at->copy()->startOfDay()->diffInDays($periodEnd) - $graceDays,
+                        $customerSince->copy()->startOfDay()->diffInDays($billingThrough->copy()->startOfDay()) - $graceDays,
                     );
                     $pricePerDay = (float) ($pallet->user->customerDetail?->default_price_per_day
                         ?? $pallet->currentStatus?->price_per_day
@@ -163,11 +177,11 @@ class OverduePalletInvoiceService
                     $invoice = $this->generate(
                         pallet: $pallet,
                         customer: $pallet->user,
-                        customerSince: $pallet->last_status_changed_at,
+                        customerSince: $customerSince,
                         graceDays: $graceDays,
                         overdueDays: $overdueDays,
                         pricePerDay: $pricePerDay,
-                        billedThrough: $periodEnd,
+                        billedThrough: $billingThrough,
                     );
 
                     if ($invoice instanceof Invoice) {
@@ -262,7 +276,7 @@ class OverduePalletInvoiceService
             throw new \InvalidArgumentException(__('This pallet is not currently eligible for an overdue invoice.'));
         }
 
-        $customerSince = $pallet->last_status_changed_at;
+        $customerSince = $pallet->customer_timer_started_at ?? $pallet->last_status_changed_at;
         $graceDays = $pallet->user->customerDetail?->grace_period_days ?? $pallet->currentStatus->grace_period_days ?? 0;
         $overdueDays = max(0, $customerSince->copy()->startOfDay()->diffInDays(now()->startOfDay()) - $graceDays);
         $pricePerDay = (float) ($pallet->user->customerDetail?->default_price_per_day ?? $pallet->currentStatus->price_per_day ?? 0);
