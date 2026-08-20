@@ -9,6 +9,7 @@ use App\Modules\Pallets\Repositories\PalletRepository;
 use App\Modules\Pallets\Rules\PalletCustomerAssignmentRule;
 use App\Modules\Shared\Enums\AuditEventType;
 use App\Modules\Shared\Services\AuditTrailService;
+use App\Modules\Shared\Services\PalletAutomaticNoteService;
 use App\Modules\Shared\Services\BaseCrudService;
 use App\Modules\Shared\Services\TrackableAssetService;
 use App\Modules\Statuses\Repositories\StatusRepository;
@@ -28,6 +29,7 @@ class PalletService extends BaseCrudService
         private readonly StatusRepository $statusRepository,
         private readonly TrackableAssetService $trackableAssetService,
         private readonly AuditTrailService $auditTrailService,
+        private readonly PalletAutomaticNoteService $palletAutomaticNoteService,
         private readonly PalletCustomerAssignmentRule $customerAssignmentRule,
         private readonly OverduePalletInvoiceService $overduePalletInvoiceService,
     ) {
@@ -92,6 +94,12 @@ class PalletService extends BaseCrudService
                 $changedAt = now();
                 $attributes['last_status_changed_at'] = $changedAt;
                 $attributes = [...$attributes, ...$this->customerTimerAttributes($lockedPallet, $nextStatus, $changedAt)];
+                $attributes['notes'] = $this->palletAutomaticNoteService->statusChangedWithManualNotes(
+                    $actor,
+                    $nextStatus,
+                    $lockedPallet->notes,
+                    $attributes['notes'] ?? null,
+                );
             }
 
             if ($customerChanged && $this->customerAssignmentRule->isAtCustomer($nextStatus)) {
@@ -164,9 +172,7 @@ class PalletService extends BaseCrudService
 
             $actorName = trim((string) ($actor->name ?: $actor->email));
             // Keep the pallet note canonical; the frontend translates it for the currently selected language.
-            $serviceNote = $isForRepair
-                ? "{$actorName} admitted pallet to service."
-                : "{$actorName} removed pallet from service.";
+            $serviceNote = $this->palletAutomaticNoteService->repairStatusChanged($actor, $isForRepair);
             $auditNote = $isForRepair
                 ? __(':actor admitted pallet to service.', ['actor' => $actorName])
                 : __(':actor removed pallet from service.', ['actor' => $actorName]);
@@ -229,6 +235,12 @@ class PalletService extends BaseCrudService
                 $changedAt = now();
                 $attributes['last_status_changed_at'] = $changedAt;
                 $attributes = [...$attributes, ...$this->customerTimerAttributes($lockedPallet, $nextStatus, $changedAt)];
+                $attributes['notes'] = $this->palletAutomaticNoteService->statusChangedWithManualNotes(
+                    $actor,
+                    $nextStatus,
+                    $lockedPallet->notes,
+                    $attributes['notes'] ?? null,
+                );
             }
 
             /** @var Pallet $updatedPallet */
@@ -287,6 +299,11 @@ class PalletService extends BaseCrudService
                 'current_status_id' => $status->id,
                 'current_location' => $nextLocation,
                 'last_status_changed_at' => $changedAt,
+                'notes' => $this->palletAutomaticNoteService->statusChangedWithManualNotes(
+                    $customer,
+                    $status,
+                    $lockedPallet->notes,
+                ),
                 ...$timerAttributes,
             ]);
 
