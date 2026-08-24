@@ -32,6 +32,29 @@ class PalletResource extends JsonResource
             $notes = implode(' | ', array_filter([$reportNotes, $notes]));
         }
 
+        $reportedLocation = null;
+        if ($this->relationLoaded('ghostPalletReport') && $this->ghostPalletReport !== null) {
+            $metadata = is_array($this->ghostPalletReport->metadata)
+                ? $this->ghostPalletReport->metadata
+                : [];
+            $entries = is_array($metadata['entries'] ?? null) ? $metadata['entries'] : [];
+            $entryIndex = null;
+
+            foreach (array_map('trim', explode('|', $notes)) as $noteSegment) {
+                if (preg_match('/^(?:Location|Locatie|Lokacija)\s+(\d+)$/iu', $noteSegment, $matches) === 1) {
+                    $entryIndex = max(0, ((int) $matches[1]) - 1);
+                    break;
+                }
+            }
+
+            $entry = $entryIndex !== null && is_array($entries[$entryIndex] ?? null)
+                ? $entries[$entryIndex]
+                : (count($entries) === 1 && is_array($entries[0]) ? $entries[0] : null);
+            $reportedLocation = is_array($entry) && filled($entry['location'] ?? null)
+                ? trim((string) $entry['location'])
+                : (filled($this->ghostPalletReport->location) ? trim((string) $this->ghostPalletReport->location) : null);
+        }
+
         return [
             'id' => $this->id,
             'user_id' => $this->user_id,
@@ -46,7 +69,10 @@ class PalletResource extends JsonResource
             'has_qr_code' => ! $this->is_ghost && filled($this->qr_code),
             'pallet_name' => $this->pallet_name,
             'reference_code' => $this->reference_code,
-            'current_location' => $this->current_location,
+            // Older no-QR pallets did not copy their per-entry location onto
+            // the pallet. Read it from the linked report so existing mobile
+            // pickup lists become useful without a data migration.
+            'current_location' => filled($this->current_location) ? $this->current_location : $reportedLocation,
             'notes' => $notes !== '' ? $notes : null,
             'note' => $notes !== '' ? $notes : null,
             'last_status_changed_at' => $this->last_status_changed_at,

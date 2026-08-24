@@ -37,7 +37,8 @@ class GhostPalletPairingFeatureTest extends TestCase
             ->assertJsonPath('data.pallets.0.pallet_name', 'PWNQRC-0001')
             ->assertJsonPath('data.pallets.0.current_status_id', $customerPickupStatus->id)
             ->assertJsonPath('data.pallets.0.user_id', $customer->id)
-            ->assertJsonPath('data.pallets.0.type', 'invullen!');
+            ->assertJsonPath('data.pallets.0.type', 'invullen!')
+            ->assertJsonPath('data.pallets.0.current_location', 'Overflow Zone');
 
         $ghostReportId = $ghostReport->json('data.id');
 
@@ -94,7 +95,8 @@ class GhostPalletPairingFeatureTest extends TestCase
             ->assertJsonPath('data.pallets.0.pallet_name', 'PWNQRC-0001')
             ->assertJsonPath('data.pallets.0.qr_code', null)
             ->assertJsonPath('data.pallets.0.is_ghost', true)
-            ->assertJsonPath('data.pallets.0.type', 'invullen!');
+            ->assertJsonPath('data.pallets.0.type', 'invullen!')
+            ->assertJsonPath('data.pallets.0.current_location', 'Loading dock');
 
         $pallet = Pallet::query()->where('is_ghost', true)->firstOrFail();
         $photo = PalletPhoto::query()->where('pallet_id', $pallet->id)->firstOrFail();

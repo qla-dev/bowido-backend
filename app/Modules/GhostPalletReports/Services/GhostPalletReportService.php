@@ -85,9 +85,12 @@ class GhostPalletReportService extends BaseCrudService
                     // null; the generated pallet name identifies the record.
                     'qr_code' => null,
                     'pallet_name' => $this->nextNoQrPalletName(),
-                    // The report itself retains where the pallet was found
-                    // for pickup follow-up purposes.
-                    'current_location' => null,
+                    // Keep the per-pallet pickup location directly on the
+                    // pallet as well. Driver/admin mobile lists are built from
+                    // pallet records and must show where a no-QR pallet is.
+                    'current_location' => filled($entry['location'] ?? null)
+                        ? trim((string) $entry['location'])
+                        : $data->location,
                     'notes' => $palletNotes !== '' ? $palletNotes : null,
                     'is_ghost' => true,
                     'ghost_pallet_report_id' => $ghostPalletReport->id,
