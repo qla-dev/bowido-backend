@@ -63,6 +63,9 @@ Route::middleware('auth:web,api')->group(function (): void {
         ->parameters(['customer_details' => 'customerDetail']);
     Route::apiResource('statuses', StatusController::class);
     Route::get('pallets/dashboard-stats', PalletStatsController::class);
+    Route::get('pallets/qr-export-list', [PalletController::class, 'qrExportList']);
+    Route::post('pallets/export-qr', [PalletController::class, 'exportQrCodes']);
+    Route::post('pallets/export-excel-report', [PalletController::class, 'exportExcelReport']);
     Route::put('pallets/{pallet}/current-location', [PalletController::class, 'updateCurrentLocation']);
     Route::put('pallets/{pallet}/repair-status', [PalletController::class, 'updateRepairStatus']);
     Route::put('pallets/{pallet}/client-status', [PalletController::class, 'updateClientStatus']);

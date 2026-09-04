@@ -101,7 +101,7 @@ class InvoicePdfService
             'days' => 'dagen',
             'customer_number' => 'Klantnummer:',
             'overview_title' => 'Overzicht te laat geretourneerde transportbokken',
-            'overview_body' => 'Onderstaand overzicht toont de transportbokken die op de leverdatum niet binnen de toegestane grace-periode zijn geretourneerd of gemeld als gereed voor ophalen. Voor elke dag vertraging boven de grace-periode wordt :rate per transportbok per dag in rekening gebracht.',
+            'overview_body' => 'Onderstaand overzicht toont de transportbokken die op de leverdatum niet binnen de toegestane respijtperiode zijn geretourneerd of gemeld als gereed voor ophalen. Voor elke dag vertraging boven de respijtperiode wordt :rate per transportbok per dag in rekening gebracht.',
             'number' => 'Nr.',
             'transport_reference' => 'Boknummer',
             'sent_on' => 'Verzonden op',

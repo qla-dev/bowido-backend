@@ -4,6 +4,17 @@ namespace App\Modules\Pallets\Controllers;
 
 use App\Modules\Pallets\DTOs\PalletData;
 use App\Modules\Pallets\Models\Pallet;
+use App\Modules\Pallets\Rules\PalletCustomerAssignmentRule;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Endroid\QrCode\QrCode;
+use Endroid\QrCode\Writer\PngWriter;
+use Endroid\QrCode\Writer\SvgWriter;
+use Illuminate\Support\Str;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use ZipArchive;
 use App\Modules\Pallets\Requests\ListPalletsRequest;
 use App\Modules\Pallets\Requests\ClaimCustomerPossessionRequest;
 use App\Modules\Pallets\Requests\ScanCustomerPossessionRequest;
@@ -34,6 +45,132 @@ class PalletController extends ApiController
             PalletResource::class,
             __('Pallets retrieved successfully.'),
         );
+    }
+
+    /**
+     * Lightweight source list for QR label exports. Do not use the regular
+     * pallet resource here: its related client, status, and location records
+     * make an export picker unnecessarily slow for larger fleets.
+     */
+    public function qrExportList(): JsonResponse
+    {
+        $actor = request()->user();
+        $this->authorize('viewAny', Pallet::class);
+
+        $query = Pallet::query()
+            ->select(['id', 'qr_code', 'pallet_name'])
+            ->where('is_ghost', false)
+            ->whereNotNull('qr_code')
+            ->where('qr_code', '!=', '');
+
+        if ($actor?->isCustomer()) {
+            $query
+                ->where('user_id', $actor->id)
+                ->whereHas('currentStatus', fn ($statusQuery) => $statusQuery->whereIn(
+                    'slug',
+                    PalletCustomerAssignmentRule::ALLOWED_STATUS_SLUGS,
+                ));
+        }
+
+        return $this->success(
+            $query->orderBy('qr_code')->get()->map(fn (Pallet $pallet): array => [
+                'id' => $pallet->id,
+                'qr_code' => $pallet->qr_code,
+                'pallet_name' => $pallet->pallet_name,
+            ])->values()->all(),
+            __('QR export pallets retrieved successfully.'),
+        );
+    }
+
+    public function exportQrCodes(): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    {
+        $this->authorize('viewAny', Pallet::class);
+        Log::info('QR export requested.', [
+            'actor_id' => request()->user()?->id,
+            'content_type' => request()->header('Content-Type'),
+            'payload_keys' => array_keys(request()->all()),
+            'pallet_ids_count' => count((array) request()->input('pallet_ids', [])),
+            'formats' => request()->input('formats', []),
+        ]);
+        $data = request()->validate([
+            'pallet_ids' => ['required', 'array', 'min:1', 'max:2000'],
+            'pallet_ids.*' => ['integer'],
+            'formats' => ['required', 'array', 'min:1', 'max:4'],
+            'formats.*' => ['in:svg,png,jpg,pdf'],
+        ]);
+        $pallets = Pallet::query()->whereIn('id', $data['pallet_ids'])->whereNotNull('qr_code')->where('qr_code', '!=', '')->get(['id', 'pallet_name', 'qr_code']);
+        abort_if($pallets->count() !== count(array_unique($data['pallet_ids'])), 404, __('One or more pallets could not be found.'));
+        $baseName = 'qr-export';
+        $labels = $pallets->map(fn (Pallet $pallet) => $pallet->pallet_name ?: $pallet->qr_code)->values();
+        $suffixes = $labels->map(fn (string $label) => preg_match('/(\d+)$/', $label, $matches) ? $matches[1] : null);
+        if ($labels->count() === 1) {
+            $baseName .= '-'.(Str::slug($labels->first()) ?: 'pallet');
+        } elseif ($suffixes->every(fn ($suffix) => $suffix !== null)) {
+            $width = $suffixes->map(fn (string $suffix) => strlen($suffix))->max();
+            $numbers = $suffixes->map(fn (string $suffix) => (int) $suffix);
+            $baseName .= '-'.str_pad((string) $numbers->min(), $width, '0', STR_PAD_LEFT).'-'.str_pad((string) $numbers->max(), $width, '0', STR_PAD_LEFT);
+        }
+        $path = storage_path('app/tmp/'.$baseName.'-'.Str::uuid().'.zip');
+        if (! is_dir(dirname($path))) mkdir(dirname($path), 0775, true);
+        $zip = new ZipArchive;
+        abort_unless($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true, 500, __('Unable to prepare the QR export.'));
+        $html = '<html><body style="font-family: sans-serif;">';
+        foreach ($pallets as $pallet) {
+            $qr = new QrCode(data: $pallet->qr_code, size: 500, margin: 12);
+            $label = Str::slug($pallet->pallet_name ?: $pallet->qr_code) ?: 'pallet-'.$pallet->id;
+            $svg = (new SvgWriter)->write($qr)->getString();
+            if (in_array('svg', $data['formats'], true)) $zip->addFromString($label.'.svg', $svg);
+            $png = null;
+            if (in_array('png', $data['formats'], true) || in_array('jpg', $data['formats'], true) || in_array('pdf', $data['formats'], true)) $png = (new PngWriter)->write($qr)->getString();
+            if (in_array('png', $data['formats'], true)) $zip->addFromString($label.'.png', $png);
+            if (in_array('jpg', $data['formats'], true) && function_exists('imagecreatefromstring')) { $image = imagecreatefromstring($png); ob_start(); imagejpeg($image, null, 94); $zip->addFromString($label.'.jpg', (string) ob_get_clean()); imagedestroy($image); }
+            if (in_array('pdf', $data['formats'], true)) $html .= '<div style="display:inline-block;width:30%;text-align:center;margin:12px;"><img style="width:150px" src="data:image/png;base64,'.base64_encode($png).'"/><br/>'.e($pallet->pallet_name ?: $pallet->qr_code).'</div>';
+        }
+        if (in_array('pdf', $data['formats'], true)) $zip->addFromString($baseName.'.pdf', Pdf::loadHTML($html.'</body></html>')->setPaper('a4')->output());
+        $zip->close();
+        Log::info('QR export prepared.', [
+            'actor_id' => request()->user()?->id,
+            'pallets_count' => $pallets->count(),
+            'formats' => $data['formats'],
+            'filename' => $baseName.'.zip',
+            'bytes' => filesize($path),
+        ]);
+        return response()->download($path, $baseName.'.zip')->deleteFileAfterSend(true);
+    }
+
+    public function exportExcelReport(): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    {
+        $this->authorize('viewAny', Pallet::class);
+        Log::info('Excel report export requested.', [
+            'actor_id' => request()->user()?->id,
+            'content_type' => request()->header('Content-Type'),
+            'payload_keys' => array_keys(request()->all()),
+            'client_ids_count' => count((array) request()->input('client_ids', [])),
+            'language' => request()->input('language'),
+        ]);
+        $data = request()->validate(['client_ids' => ['nullable', 'array'], 'client_ids.*' => ['integer'], 'language' => ['nullable', 'in:en,nl,bs']]);
+        $language = $data['language'] ?? 'en';
+        $copy = match ($language) {
+            'nl' => ['summary_title' => 'Overzicht bokken per klant', 'summary' => 'Overzicht', 'client' => 'Klant', 'pallets' => 'Aantal bokken', 'overdue' => 'Bokken met schuld', 'debt_total' => 'Totale schuld (EUR)', 'debt' => 'Schuld (EUR)', 'pallet' => 'Bok', 'type' => 'Type', 'status' => 'Status', 'sent' => 'Verzonden', 'days' => 'Dagen bij klant', 'grace' => 'Respijtdagen', 'late' => 'Dagen te laat', 'location' => 'Locatie', 'total' => 'Totaal'],
+            'bs' => ['summary_title' => 'Pregled paleta po kupcu', 'summary' => 'Pregled', 'client' => 'Kupac', 'pallets' => 'Broj paleta', 'overdue' => 'Palete s dugom', 'debt_total' => 'Ukupan dug (EUR)', 'debt' => 'Dug (EUR)', 'pallet' => 'Paleta', 'type' => 'Tip', 'status' => 'Status', 'sent' => 'Poslana', 'days' => 'Dana kod kupca', 'grace' => 'Dani tolerancije', 'late' => 'Dana preko', 'location' => 'Lokacija', 'total' => 'Ukupno'],
+            default => ['summary_title' => 'Pallet overview by customer', 'summary' => 'Summary', 'client' => 'Customer', 'pallets' => 'Pallet count', 'overdue' => 'Pallets with debt', 'debt_total' => 'Total debt (EUR)', 'debt' => 'Debt (EUR)', 'pallet' => 'Pallet', 'type' => 'Type', 'status' => 'Status', 'sent' => 'Sent', 'days' => 'Days at client', 'grace' => 'Grace', 'late' => 'Days overdue', 'location' => 'Location', 'total' => 'Total'],
+        };
+        $query = Pallet::query()->with(['user.customerDetail', 'currentStatus'])->whereHas('currentStatus', fn ($q) => $q->where('is_billable', true));
+        if (! empty($data['client_ids'])) $query->whereIn('user_id', $data['client_ids']);
+        $groups = $query->whereNotNull('user_id')->get()->groupBy(fn (Pallet $pallet) => $pallet->user_id)->map(function ($pallets, $id) use ($copy) {
+            $first = $pallets->first(); return ['id' => $id, 'name' => $first->user?->customerDetail?->company_name ?: $first->user?->name ?: $copy['client'].' '.$id, 'pallets' => $pallets];
+        })->values();
+        $spreadsheet = new Spreadsheet; $spreadsheet->removeSheetByIndex(0);
+        $headerStyle = ['fill' => ['fillType' => Fill::FILL_SOLID, 'color' => ['rgb' => 'F3F4F6']], 'font' => ['bold' => true], 'alignment' => ['horizontal' => 'center']];
+        $titleStyle = ['fill' => ['fillType' => Fill::FILL_SOLID, 'color' => ['rgb' => 'E8F5EE']], 'font' => ['bold' => true, 'size' => 14]];
+        $totalStyle = ['fill' => ['fillType' => Fill::FILL_SOLID, 'color' => ['rgb' => 'ECFDF5']], 'font' => ['bold' => true]];
+        $metrics = function (Pallet $pallet): array { $started = $pallet->customer_timer_started_at ?? $pallet->last_status_changed_at; $days = $started ? $started->copy()->startOfDay()->diffInDays(now()->startOfDay()) : 0; $grace = $pallet->user?->customerDetail?->grace_period_days ?? $pallet->currentStatus?->grace_period_days ?? 0; $overdue = max(0, $days - $grace); return [$started, $days, $grace, $overdue, $overdue * ($pallet->user?->customerDetail?->default_price_per_day ?? $pallet->currentStatus?->price_per_day ?? 0)]; };
+        if ($groups->count() > 1) { $sheet = $spreadsheet->createSheet()->setTitle($copy['summary']); $sheet->mergeCells('A1:D1'); $sheet->setCellValue('A1', $copy['summary_title']); $sheet->getStyle('A1:D1')->applyFromArray($titleStyle); $sheet->fromArray([[$copy['client'], $copy['pallets'], $copy['overdue'], $copy['debt_total']]], null, 'A3'); $sheet->getStyle('A3:D3')->applyFromArray($headerStyle); $row = 4; $totals = [0, 0, 0.0]; foreach ($groups as $group) { $total = 0; $late = 0; foreach ($group['pallets'] as $pallet) { [, , , $overdue, $debt] = $metrics($pallet); $total += $debt; $late += $overdue > 0; } $sheet->fromArray([[$group['name'], $group['pallets']->count(), $late, $total]], null, 'A'.$row++); $totals[0] += $group['pallets']->count(); $totals[1] += $late; $totals[2] += $total; } $sheet->fromArray([[$copy['total'], $totals[0], $totals[1], $totals[2]]], null, 'A'.$row); $sheet->getStyle('A'.$row.':D'.$row)->applyFromArray($totalStyle); foreach (range('A', 'D') as $column) $sheet->getColumnDimension($column)->setAutoSize(true); $sheet->getStyle('D4:D'.$row)->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER_00); }
+        $usedSheetNames = [$copy['summary']];
+        foreach ($groups as $group) { $baseSheetName = Str::limit(trim(str_replace(['\\','/','*','?','[',']',':'], ' ', $group['name'])) ?: $copy['client'].'-'.$group['id'], 31, ''); $sheetName = $baseSheetName; $suffix = 2; while (in_array($sheetName, $usedSheetNames, true)) { $sheetName = Str::limit($baseSheetName, 31 - strlen((string) $suffix) - 1, '').'-'.$suffix++; } $usedSheetNames[] = $sheetName; $sheet = $spreadsheet->createSheet()->setTitle($sheetName); $sheet->mergeCells('A1:I1'); $sheet->setCellValue('A1', $copy['client'].': '.$group['name']); $sheet->getStyle('A1:I1')->applyFromArray($titleStyle); $row = 4; $total = 0; $lateCount = 0; foreach ($group['pallets'] as $pallet) { [$started, $days, $grace, $overdue, $debt] = $metrics($pallet); $total += $debt; $lateCount += $overdue > 0; $sheet->fromArray([[$pallet->pallet_name ?: $pallet->qr_code, $pallet->type, $pallet->currentStatus?->name, $started?->format('d.m.Y'), $days, $grace, $overdue, $debt, $pallet->current_location]], null, 'A'.($row + 1)); $row++; } $sheet->fromArray([[$copy['pallets'], $group['pallets']->count(), $copy['overdue'], $lateCount, $copy['debt_total'], $total]], null, 'A2'); $sheet->getStyle('A2:I2')->applyFromArray(['fill' => ['fillType' => Fill::FILL_SOLID, 'color' => ['rgb' => 'FAFAFA']], 'font' => ['bold' => true]]); $sheet->fromArray([[$copy['pallet'], $copy['type'], $copy['status'], $copy['sent'], $copy['days'], $copy['grace'], $copy['late'], $copy['debt'], $copy['location']]], null, 'A4'); $sheet->getStyle('A4:I4')->applyFromArray($headerStyle); $totalRow = $row + 1; $sheet->mergeCells('A'.$totalRow.':G'.$totalRow); $sheet->setCellValue('A'.$totalRow, $copy['total']); $sheet->setCellValue('H'.$totalRow, $total); $sheet->getStyle('A'.$totalRow.':I'.$totalRow)->applyFromArray($totalStyle); $sheet->getStyle('H5:H'.$totalRow)->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER_00); foreach (range('A','I') as $column) $sheet->getColumnDimension($column)->setAutoSize(true); }
+        $path = storage_path('app/tmp/customer-report-'.Str::uuid().'.xlsx'); if (! is_dir(dirname($path))) mkdir(dirname($path), 0775, true); (new Xlsx($spreadsheet))->save($path);
+        Log::info('Excel report export prepared.', ['actor_id' => request()->user()?->id, 'clients_count' => $groups->count(), 'bytes' => filesize($path)]);
+        return response()->download($path, 'trackpal-customer-report.xlsx')->deleteFileAfterSend(true);
     }
 
     public function store(StorePalletRequest $request): JsonResponse
